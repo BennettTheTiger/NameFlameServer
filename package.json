@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "local": "nodemon app.js",
-    "test": "jest",
+    "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint ."
   },
   "repository": {
