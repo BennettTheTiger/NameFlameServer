@@ -21,10 +21,11 @@ app.use(cors());
 
 // MongoDB connection
 const mongoURI = 'mongodb://localhost:27017/babyNameApp';
-mongoose
-  .connect(mongoURI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.log('MongoDB connection error:', err));
+if (process.env.NODE_ENV !== 'test') {
+    mongoose.connect(mongoURI)
+      .then(() => console.log('MongoDB connected'))
+      .catch((err) => console.log('MongoDB connection error:', err));
+}
 
 // Sample User and Favorites Models
 const User = mongoose.model('User', new mongoose.Schema({
@@ -41,7 +42,7 @@ const Name = mongoose.model('Name', new mongoose.Schema({
 }));
 
 // Routes
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/v1/auth/register', async (req, res) => {
   const { email, password } = req.body;
   const existingUser = await User.findOne({ email });
   if (existingUser) return res.status(400).send({ message: 'User already exists' });
@@ -51,7 +52,7 @@ app.post('/api/auth/register', async (req, res) => {
   res.status(201).send({ message: 'User registered successfully' });
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/v1/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email, password });
   if (!user) return res.status(401).send({ message: 'Invalid credentials' });
@@ -59,7 +60,7 @@ app.post('/api/auth/login', async (req, res) => {
   res.status(200).send({ message: 'Login successful', userId: user._id });
 });
 
-app.get('/api/names', async (req, res) => {
+app.get('/api/v1/names', async (req, res) => {
   const { gender, origin } = req.query;
   const query = {};
 
@@ -70,7 +71,7 @@ app.get('/api/names', async (req, res) => {
   res.status(200).send(names);
 });
 
-app.put('/api/favorites', async (req, res) => {
+app.put('/api/v1/favorites', async (req, res) => {
   const { userId, nameId } = req.body;
 
   const user = await User.findById(userId);
@@ -96,7 +97,7 @@ io.on('connection', (socket) => {
   });
 });
 
-app.get('/hello', async (req, res) => {
+app.get('/api/v1/hello', async (req, res) => {
     res.status(200).send('Hello');
   });
 
