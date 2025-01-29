@@ -4,6 +4,9 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const http = require('http');
+require('dotenv').config();
+
+const { Schema } = mongoose;
 
 // Initialize Server
 const app = express();
@@ -20,25 +23,49 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // MongoDB connection
-const mongoURI = 'mongodb://localhost:27017/babyNameApp';
+const mongoURI = `mongodb+srv://nameflameserver:${process.env.DB_PASSWORD}@cluster0.b9oa5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 if (process.env.NODE_ENV !== 'test') {
     mongoose.connect(mongoURI)
       .then(() => console.log('MongoDB connected'))
       .catch((err) => console.log('MongoDB connection error:', err));
 }
 
-// Sample User and Favorites Models
 const User = mongoose.model('User', new mongoose.Schema({
-  email: String,
-  password: String,
-  id: String
+  email: { type: String, unique: true, require: true },
+  password: { type: String, require: true },
+}, {
+    collection: 'users',
+    timestamps: true
 }));
 
+const NameFilterSchema = new mongoose.Schema({
+    startsWithLeter: { type: String, maxLength: 1 },
+    maxCharacters: { type: Number, min: [1, 'A name must be at least one character'], max: [256, 'Be honest, no one wants to have to spell a name that long']},
+    noun: { type: String },
+    gender: { type: String, enum: ['male', 'female', 'non-binary'] }
+});
+
+
+const NameContext = mongoose.model('NameContext', new mongoose.Schema({
+    name: { type: String, require: true },
+    description: { type: String },
+    owner: { type: Schema.Types.ObjectId, ref: 'User', require: true },
+    participants: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    likedNames: { type: Schema.Types.Map, of: [{ type: Schema.Types.ObjectId, ref: 'Name' }] },
+    filter: NameFilterSchema
+  }, {
+      collection: 'name-contexts',
+      timestamps: true
+  }));
+console.log(NameContext);
+
 const Name = mongoose.model('Name', new mongoose.Schema({
-  name: String,
+  name: { type: String, require: true },
   origin: String,
   meaning: String,
-  gender: String,
+  gender: { type: String, enum: ['male', 'female', 'non-binary'] }
+}, {
+    collection: 'names'
 }));
 
 // Routes
@@ -47,7 +74,10 @@ app.post('/api/v1/auth/register', async (req, res) => {
   const existingUser = await User.findOne({ email });
   if (existingUser) return res.status(400).send({ message: 'User already exists' });
 
-  const newUser = new User({ email, password });
+  const newUser = new User({
+    email,
+    password,
+  });
   await newUser.save();
   res.status(201).send({ message: 'User registered successfully' });
 });
