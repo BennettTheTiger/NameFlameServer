@@ -10,6 +10,10 @@ require('dotenv').config();
 
 const { Schema } = mongoose;
 
+const Roles = {
+  User: 'user'
+}
+
 // Initialize Server
 const app = express();
 const server = http.createServer(app);
@@ -36,6 +40,7 @@ const User = mongoose.model('User', new mongoose.Schema({
   userName: { type: String, unique: true, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
+  role: { type: String, enum: [Roles.User]}
 }, {
     collection: 'users',
     timestamps: true
@@ -81,6 +86,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     userName,
     email,
     password,
+    role: Roles.User
   });
 
   const errors = newUser.validateSync();
