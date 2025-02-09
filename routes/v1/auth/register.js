@@ -6,15 +6,17 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
 router.post('/register', async (req, res) => {
-  const { email, password, userName } = req.body;
+  const { email, password, userName, firstName, lastName } = req.body;
   try {
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ userName });
     if (existingUser) return res.status(400).send({ message: 'User already exists' });
 
     const newUser = new User({
         userName,
         email,
         password,
+        firstName,
+        lastName,
         id: uuidv4(),
         role: 'user'
     });

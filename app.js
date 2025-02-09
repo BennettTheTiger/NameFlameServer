@@ -10,6 +10,7 @@ require('dotenv').config();
 const authMiddleware = require('./middleware/auth');
 const { login, register } = require('./routes/v1/auth');
 const nameContextRouter = require('./routes/v1/nameContext');
+const nameRouter = require('./routes/v1/names');
 
 // Initialize Server
 const app = express();
@@ -35,6 +36,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.use('/api/v1/auth', login);
 app.use('/api/v1/auth', register);
+app.use('/api/v1', nameRouter);
 // protected routes
 app.use('/api/v1', authMiddleware, nameContextRouter);
 
