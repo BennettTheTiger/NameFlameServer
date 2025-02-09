@@ -36,7 +36,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.use('/api/v1/auth', login);
 app.use('/api/v1/auth', register);
-app.use('/api/v1', nameRouter);
+app.use('/api/v1', nameRouter); // TODO but this behind auth middleware
 // protected routes
 app.use('/api/v1', authMiddleware, nameContextRouter);
 
