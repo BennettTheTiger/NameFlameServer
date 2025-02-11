@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const http = require('http');
+const rateLimit = require('express-rate-limit');
 
 require('dotenv').config();
 
@@ -22,6 +23,12 @@ const io = new Server(server, {
   },
 });
 
+// Rate limiter configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+});
+
 // Middleware
 app.use(bodyParser.json());
 app.use(cors());
@@ -38,7 +45,7 @@ app.use('/api/v1/auth', login);
 app.use('/api/v1/auth', register);
 app.use('/api/v1', nameRouter); // TODO but this behind auth middleware
 // protected routes
-app.use('/api/v1', authMiddleware, nameContextRouter);
+app.use('/api/v1', authMiddleware, limiter, nameContextRouter);
 
 /*
 app.put('/api/v1/favorites', async (req, res) => {
