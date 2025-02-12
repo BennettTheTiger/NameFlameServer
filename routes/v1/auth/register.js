@@ -27,7 +27,7 @@ router.post('/register', async (req, res) => {
         return res.status(400).send({ message: errors.message });
     }
 
-    const existingUserName = await User.findOne({ userName });
+    const existingUserName = await User.findOne({ userName: { $eq: userName } });
     if (existingUserName) return res.status(400).send({ message: `The username ${userName} is already taken.` });
 
     const salt = await bcrypt.genSalt(10);
