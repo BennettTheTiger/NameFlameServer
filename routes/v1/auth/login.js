@@ -11,7 +11,7 @@ router.post('/login', async (req, res) => {
 
   try {
       // Check if the user exists
-      let user = await User.findOne({ userName });
+      let user = await User.findOne({ userName: { $eq: userName } });
       if (!user) {
           return res.status(400).json({ msg: 'Invalid credentials' });
       }

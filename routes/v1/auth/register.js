@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 router.post('/register', async (req, res) => {
   const { email, password, userName, firstName, lastName } = req.body;
   try {
-    const existingUser = await User.findOne({ userName });
+    const existingUser = await User.findOne({ userName: { $eq: userName } });
     if (existingUser) return res.status(400).send({ message: 'User already exists' });
 
     const newUser = new User({
