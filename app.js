@@ -4,12 +4,14 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const http = require('http');
+const rateLimit = require('express-rate-limit');
 
 require('dotenv').config();
 
 const authMiddleware = require('./middleware/auth');
 const { login, register } = require('./routes/v1/auth');
 const nameContextRouter = require('./routes/v1/nameContext');
+const nameRouter = require('./routes/v1/names');
 
 // Initialize Server
 const app = express();
@@ -19,6 +21,22 @@ const io = new Server(server, {
     origin: '*', // Allow cross-origin requests
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
+});
+
+// Rate limiter configurations
+const defaultLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2,
 });
 
 // Middleware
@@ -33,23 +51,11 @@ if (process.env.NODE_ENV !== 'test') {
       .catch((err) => console.log('MongoDB connection error:', err));
 }
 
-app.use('/api/v1/auth', login);
-app.use('/api/v1/auth', register);
+app.use('/api/v1/auth', loginLimiter, login);
+app.use('/api/v1/auth', registerLimiter, register);
+app.use('/api/v1', authMiddleware, defaultLimiter,  nameRouter); // TODO but this behind auth middleware
 // protected routes
-app.use('/api/v1', authMiddleware, nameContextRouter);
-
-/*
-app.put('/api/v1/favorites', async (req, res) => {
-  const { userId, nameId } = req.body;
-
-  const user = await User.findById(userId);
-  if (!user) return res.status(404).send({ message: 'User not found' });
-
-  if (!user.favorites.includes(nameId)) user.favorites.push(nameId);
-  await user.save();
-  res.status(200).send({ message: 'Name added to favorites', favorites: user.favorites });
-});
-*/
+app.use('/api/v1', authMiddleware, defaultLimiter, nameContextRouter);
 
 // Real-time collaboration with Socket.io
 io.on('connection', (socket) => {

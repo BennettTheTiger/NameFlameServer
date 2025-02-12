@@ -7,7 +7,8 @@
     "start": "node app.js",
     "local": "nodemon app.js",
     "test": "jest --detectOpenHandles --coverage",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "coverage": "jest --coverage --coverageReporters=text-lcov | coveralls"
   },
   "repository": {
     "type": "git",
@@ -28,10 +29,12 @@
     "lodash": "^4.17.21",
     "mongoose": "^8.9.5",
     "socket.io": "^4.8.1",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "express-rate-limit": "^7.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
+    "coveralls": "^3.1.1",
     "eslint": "^9.19.0",
     "eslint-plugin-jest": "^28.11.0",
     "globals": "^15.14.0",

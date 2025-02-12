@@ -5,20 +5,53 @@ const NameFilterSchema = new mongoose.Schema({
     startsWithLeter: { type: String, maxLength: 1 },
     maxCharacters: { type: Number, min: [1, 'A name must be at least one character'], max: [256, 'Be honest, no one wants to have to spell a name that long']},
     noun: { type: String },
-    gender: { type: String, enum: ['male', 'female', 'non-binary'] }
+    gender: { type: String, enum: ['male', 'female', 'neutral'], default: 'neutral' },
 });
 
-const NameContext = mongoose.model('NameContext', new mongoose.Schema({
+const NameContextSchema = new mongoose.Schema({
     name: { type: String, required: true },
     id: { type: String, unique: true },
-    description: { type: String },
-    owner: { type: Schema.Types.UUID, ref: 'User', required: true },
-    participants: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-    likedNames: { type: Schema.Types.Map, of: [{ type: Schema.Types.ObjectId, ref: 'Name' }] },
+    description: { type: String, default: '' },
+    owner: { type: String, ref: 'User', required: true },
+    participants: [{ type: Schema.Types.UUID, ref: 'User' }],
+    likedNames: { type: Schema.Types.Map, of: [String] },
     filter: NameFilterSchema
   }, {
       collection: 'name-contexts',
       timestamps: true
-  }));
+  });
+
+  // Virtual field for isOwner
+NameContextSchema.virtual('isOwner').get(function() {
+    if (!this.owner || !this._currentUserId) {
+      return false;
+    }
+    return this.owner.toString() === this._currentUserId.toString();
+  });
+
+// Virtual field for matches
+NameContextSchema.virtual('matches').get(function() {
+    if (!this.likedNames) return new Set();
+
+    const likedNamesArray = Array.from(this.likedNames.values());
+    if (likedNamesArray.length === 0) return new Set();
+
+    const intersection = likedNamesArray.reduce((acc, names) => {
+      if (acc === null) return new Set(names);
+      return new Set(names.filter(name => acc.has(name)));
+    }, null);
+
+    return intersection;
+  });
+
+  // Ensure virtual fields are serialized
+  NameContextSchema.set('toJSON', { virtuals: true });
+  NameContextSchema.set('toObject', { virtuals: true });
+
+  NameContextSchema.methods.setCurrentUserId = function(userId) {
+    this._currentUserId = userId;
+  };
+
+  const NameContext = mongoose.model('NameContext', NameContextSchema);
 
   module.exports = NameContext;

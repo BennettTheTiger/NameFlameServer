@@ -7,11 +7,11 @@ const _ = require('lodash');
 const User = require('../../../models/user');
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { userName, password } = req.body;
 
   try {
       // Check if the user exists
-      let user = await User.findOne({ email });
+      let user = await User.findOne({ userName: { $eq: userName } });
       if (!user) {
           return res.status(400).json({ msg: 'Invalid credentials' });
       }
@@ -23,7 +23,7 @@ router.post('/login', async (req, res) => {
       }
 
       // Generate JWT token
-      const payload = _.pick(user, ['id', 'userName', 'role']);
+      const payload = _.pick(user, ['id', 'userName', 'role', 'firstName', 'lastName']);
 
       jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 3600 },
       (err, token) => {
