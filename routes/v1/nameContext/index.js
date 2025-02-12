@@ -80,7 +80,7 @@ router.get('/nameContext/:id', async (req, res) => {
       const result = trimNameContext(nameContext);
       res.status(200).send(result);
     } catch (err) {
-      console.error(`Error updating name context ${id}:`, err.message);
+      console.error('Error updating name context %s:', id, err.message);
       res.status(500).send({ message: 'Server error' });
     }
   });
