@@ -36,15 +36,16 @@ router.get('/nameContext/:id', async (req, res) => {
   router.post('/nameContext', async (req, res) => {
     console.log('should add', req.body);
 
-    const { name, description } = req.body;
+    const { name, description, filters, noun } = req.body;
 
     const newNameContext = new NameContext({
       name,
       description,
+      noun,
       owner: req.userData.id, // from authMiddleware
       id: uuidv4(),
       participants: [], // TODO add participants
-      filters: {}
+      filters: filters
     });
 
     const errors = newNameContext.validateSync();

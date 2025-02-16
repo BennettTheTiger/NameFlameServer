@@ -21,7 +21,7 @@ describe('POST /api/v1/auth/login', () => {
             .post('/api/v1/auth/login')
             .send({ email: 'test@example.com', password: 'password123' });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(401);
         expect(res.body.msg).toBe('Invalid credentials');
     });
 
@@ -33,7 +33,7 @@ describe('POST /api/v1/auth/login', () => {
             .post('/api/v1/auth/login')
             .send({ email: 'test@example.com', password: 'password123' });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(401);
         expect(res.body.msg).toBe('Invalid credentials');
     });
 
