@@ -2,9 +2,8 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const NameFilterSchema = new mongoose.Schema({
-    startsWithLeter: { type: String, maxLength: 1 },
+    startsWithLetter: { type: String, maxLength: 1 },
     maxCharacters: { type: Number, min: [1, 'A name must be at least one character'], max: [256, 'Be honest, no one wants to have to spell a name that long']},
-    noun: { type: String },
     gender: { type: String, enum: ['male', 'female', 'neutral'], default: 'neutral' },
 });
 
@@ -12,6 +11,7 @@ const NameContextSchema = new mongoose.Schema({
     name: { type: String, required: true },
     id: { type: String, unique: true },
     description: { type: String, default: '' },
+    noun: { type: String },
     owner: { type: String, ref: 'User', required: true },
     participants: [{ type: Schema.Types.UUID, ref: 'User' }],
     likedNames: { type: Schema.Types.Map, of: [String] },
