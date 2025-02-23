@@ -39,7 +39,7 @@ describe('Auth Middleware', () => {
 
     expect(jwt.verify).toHaveBeenCalledWith('validToken', process.env.JWT_SECRET);
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Authentication failed try Again' });
+    expect(res.json).toHaveBeenCalledWith({ error: new Error('Invalid token') });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -49,7 +49,7 @@ describe('Auth Middleware', () => {
     authMiddleware(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Authentication failed try Again' });
+    expect(res.json).toHaveBeenCalledWith({ error: new Error('Invalid token') });
     expect(next).not.toHaveBeenCalled();
   });
 });
