@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const _ = require('lodash');
 const NameContext = require('../../../models/nameContext');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 
-function trimNameContext(nameContext) {
+function trimNameContext(req, nameContext) {
+  const userId = req.userData.id;
   const result = nameContext.toObject();
+  if (result.likedNames instanceof Map) {
+    // only pick the liked names for the current user
+    result.likedNames = _.pick(Object.fromEntries(result.likedNames), [userId]);
+  }
   delete result._id;
   delete result.owner;
   delete result.__v;
@@ -20,7 +26,7 @@ router.get('/nameContext/:id', async (req, res) => {
     const nameContext = await NameContext.findOne({ id });
     // Set the current user ID to use in the virtual field
     nameContext.setCurrentUserId(req.userData.id);
-    const nameContextResult = trimNameContext(nameContext);
+    const nameContextResult = trimNameContext(req, nameContext);
     res.status(200).send(nameContextResult);
   });
 
@@ -30,12 +36,10 @@ router.get('/nameContext/:id', async (req, res) => {
     // Set the current user ID for each nameContext to use in the virtual field
     nameContexts.forEach(nameContext => nameContext.setCurrentUserId(req.userData.id));
 
-    res.status(200).send(nameContexts.map(trimNameContext));
+    res.status(200).send(nameContexts.map((item) => trimNameContext(req, item)));
   });
 
   router.post('/nameContext', async (req, res) => {
-    console.log('should add', req.body);
-
     const { name, description, filters, noun } = req.body;
 
     const newNameContext = new NameContext({
@@ -78,7 +82,7 @@ router.get('/nameContext/:id', async (req, res) => {
       }
 
       await nameContext.save();
-      const result = trimNameContext(nameContext);
+      const result = trimNameContext(req, nameContext);
       res.status(200).send(result);
     } catch (err) {
       console.error('Error updating name context %s:', id, err.message);

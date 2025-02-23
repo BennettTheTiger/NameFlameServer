@@ -1,16 +1,44 @@
 const express = require('express');
 const router = express.Router();
+const _ = require('lodash');
 const Name = require('../../../models/name');
+
+
+function processNameResult(nameResult) {
+  const nameDoc = new Name(nameResult);
+  const nameWithVirtuals = nameDoc.toObject({ virtuals: true });
+  // Convert Map to plain object
+  if (nameWithVirtuals.popularity instanceof Map) {
+    nameWithVirtuals.popularity = Object.fromEntries(nameWithVirtuals.popularity);
+  }
+  return _.omit(nameWithVirtuals, ['_id', '__v', 'id']);
+}
 
 router.get('/names', async (req, res) => {
     const names = await Name.find();
     res.status(200).send(names);
   });
 
-router.get('/name/random', async (req, res) => {
-  const randomName = await Name.aggregate([{ $sample: { size: 1 } }]);
-  res.status(200).send(randomName);
-});
+  router.get('/name/random', async (req, res) => {
+    const randomName = await Name.aggregate([{ $sample: { size: 1 } }]);
+    if (randomName.length > 0) {
+      const response = processNameResult(randomName[0]);
+      res.status(200).send(response);
+    } else {
+      res.status(404).send({ message: 'No names found' });
+    }
+  });
+
+  router.get('/name/:value', async (req, res) => {
+    const { value } = req.params;
+    const nameResult = await Name.findOne({ name: { $eq: value } });
+    if (nameResult) {
+      const response = processNameResult(nameResult);
+      res.status(200).send(response);
+    } else {
+      res.status(404).send({ message: `${ value } not found` });
+    }
+  });
 
 // Internal route to be disabled unless admin permissions are granted
 /*

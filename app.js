@@ -43,9 +43,6 @@ const registerLimiter = rateLimit({
 app.use(bodyParser.json());
 app.use(cors());
 
-// Trust proxy headers needed for cloud deployment
-app.set('trust proxy', true);
-
 // MongoDB connection
 const mongoURI = `mongodb+srv://nameflameserver:${process.env.DB_PASSWORD}@cluster0.b9oa5.mongodb.net/app-data?retryWrites=true&w=majority&appName=Cluster0`;
 if (process.env.NODE_ENV !== 'test') {
