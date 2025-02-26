@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const _ = require('lodash');
 const Name = require('../../../models/name');
+const { NotFoundError } = require('../../../middleware/errors');
 
 
 function processNameResult(nameResult) {
@@ -19,26 +20,32 @@ router.get('/names', async (req, res) => {
     res.status(200).send(names);
   });
 
-  router.get('/name/random', async (req, res) => {
+router.get('/name/random', async (req, res, next) => {
+  try {
     const randomName = await Name.aggregate([{ $sample: { size: 1 } }]);
     if (randomName.length > 0) {
       const response = processNameResult(randomName[0]);
       res.status(200).send(response);
-    } else {
-      res.status(404).send({ message: 'No names found' });
     }
-  });
+    else throw new NotFoundError('No names found');
+  } catch (err) {
+    next(err);
+  }
+});
 
-  router.get('/name/:value', async (req, res) => {
-    const { value } = req.params;
+router.get('/name/:value', async (req, res, next) => {
+  const { value } = req.params;
+  try {
     const nameResult = await Name.findOne({ name: { $eq: value } });
     if (nameResult) {
       const response = processNameResult(nameResult);
       res.status(200).send(response);
-    } else {
-      res.status(404).send({ message: `${ value } not found` });
     }
-  });
+    else throw new NotFoundError(`Name ${value} not found`);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Internal route to be disabled unless admin permissions are granted
 /*
