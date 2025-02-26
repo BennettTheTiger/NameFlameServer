@@ -1,14 +1,15 @@
 const request = require('supertest');
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../../../models/user');
 const router = require('./register');
+const { errorHandler } = require('../../../middleware/errors');
 
 const app = express();
 app.use(express.json());
 app.use('/api/v1/auth', router);
+app.use(errorHandler)
 
 jest.mock('bcryptjs');
 jest.mock('jsonwebtoken');
@@ -29,14 +30,14 @@ afterAll(() => {return new Promise(done => {
 
 describe('POST /api/v1/auth/register', () => {
   it('should return 400 if user already exists', async () => {
-    User.findOne.mockResolvedValue({ email: 'test@example.com' });
+    User.findOne.mockResolvedValue({ userName: 'testuser' });
 
     const res = await agent
       .post('/api/v1/auth/register')
       .send({ userName: 'testuser', email: 'test@example.com', password: 'password123' });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe('User already exists');
+    expect(res.body.error).toBe('The username testuser is already taken.');
   });
 
   it('should return 400 if user validation fails', async () => {
@@ -53,22 +54,18 @@ describe('POST /api/v1/auth/register', () => {
     expect(res.body.message).toBe('Validation error');
   });
 
-  it('should return 200 and a token if registration is successful', async () => {
+  it('should return 200 if registration is successful', async () => {
     User.findOne.mockResolvedValue(null);
     bcrypt.hash.mockResolvedValue('hashedpassword');
     uuidv4.mockReturnValue('unique-id');
     User.prototype.validateSync = jest.fn().mockReturnValue(null);
     User.prototype.save = jest.fn().mockResolvedValue({});
-    jwt.sign.mockImplementation((payload, secret, options, callback) => {
-      callback(null, 'token');
-    });
 
     const res = await agent
       .post('/api/v1/auth/register')
       .send({ userName: 'testuser', email: 'test2@example.com', password: 'password123' });
 
     expect(res.status).toBe(200);
-    expect(res.body.token).toBe('token');
   });
 
   it('should return 500 if there is a server error', async () => {

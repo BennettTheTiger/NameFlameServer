@@ -1,5 +1,6 @@
 const checkNameContextOwner = require('./checkNameContextOwner');
 const NameContext = require('../models/nameContext');
+const { NotFoundError, ForbiddenError, InternalServerError } = require('./errors');
 
 jest.mock('../models/nameContext');
 
@@ -32,11 +33,10 @@ describe('Check Name Context Owner Middleware', () => {
     NameContext.findOne.mockResolvedValue(null);
 
     await checkNameContextOwner(req, res, next);
+    const expectedError = new NotFoundError('Name context contextId not found');
 
     expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-    expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.send).toHaveBeenCalledWith({ message: 'Name context contextId not found' });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expectedError);
   });
 
   it('should return 403 if user is not the owner', async () => {
@@ -44,21 +44,19 @@ describe('Check Name Context Owner Middleware', () => {
     NameContext.findOne.mockResolvedValue(nameContext);
 
     await checkNameContextOwner(req, res, next);
+    const expectedError = new ForbiddenError('User is not the owner of name context contextId');
 
     expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.send).toHaveBeenCalledWith({ message: 'You are not authorized to access this name context' });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expectedError);
   });
 
   it('should return 500 if there is a server error', async () => {
     NameContext.findOne.mockRejectedValue(new Error('Server error'));
 
     await checkNameContextOwner(req, res, next);
+    const expectedError = new InternalServerError('Server error');
 
     expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-    expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.send).toHaveBeenCalledWith({ message: 'Server error' });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expectedError);
   });
 });

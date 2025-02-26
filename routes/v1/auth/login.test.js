@@ -4,10 +4,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../../../models/user');
 const router = require('./login');
+const { errorHandler } = require('../../../middleware/errors');
 
 const app = express();
 app.use(express.json());
 app.use('/api/v1/auth', router);
+app.use(errorHandler);
 
 jest.mock('../../../models/user');
 jest.mock('bcryptjs');
@@ -21,8 +23,8 @@ describe('POST /api/v1/auth/login', () => {
             .post('/api/v1/auth/login')
             .send({ email: 'test@example.com', password: 'password123' });
 
-        expect(res.status).toBe(401);
-        expect(res.body.msg).toBe('Invalid credentials');
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('Invalid credentials');
     });
 
     it('should return 400 if password does not match', async () => {
@@ -33,8 +35,8 @@ describe('POST /api/v1/auth/login', () => {
             .post('/api/v1/auth/login')
             .send({ email: 'test@example.com', password: 'password123' });
 
-        expect(res.status).toBe(401);
-        expect(res.body.msg).toBe('Invalid credentials');
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('Invalid credentials');
     });
 
     it('should return 200 and a token if login is successful', async () => {
@@ -61,6 +63,6 @@ describe('POST /api/v1/auth/login', () => {
             .send({ email: 'test@example.com', password: 'password123' });
 
         expect(res.status).toBe(500);
-        expect(res.text).toBe('Server Error');
+        expect(res.body.error).toBe('Server Error');
     });
 });

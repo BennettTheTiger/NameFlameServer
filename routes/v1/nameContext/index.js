@@ -4,6 +4,8 @@ const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const NameContext = require('../../../models/nameContext');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
+const { NotFoundError, InternalServerError, BadRequestError, ForbiddenError } = require('../../../middleware/errors');
+const logger = require('../../../logger');
 
 function trimNameContext(req, nameContext) {
   const userId = req.userData.id;
@@ -21,22 +23,34 @@ function trimNameContext(req, nameContext) {
 router.get('/nameContext/:id', async (req, res) => {
     const { id } = req.params;
 
-    if (!id) return res.status(400).send({ message: 'ID is required' });
-
     const nameContext = await NameContext.findOne({ id });
-    // Set the current user ID to use in the virtual field
-    nameContext.setCurrentUserId(req.userData.id);
-    const nameContextResult = trimNameContext(req, nameContext);
-    res.status(200).send(nameContextResult);
+    if (!nameContext) {
+      throw new NotFoundError(`Name context ${id} not found`);
+    }
+
+    try {
+      nameContext.setCurrentUserId(req.userData.id);
+      const nameContextResult = trimNameContext(req, nameContext);
+      res.status(200).send(nameContextResult);
+    }
+    catch (err) {
+      logger.error(`Error getting name context ${id}:`, err.message);
+      throw new InternalServerError('Error getting name context');
+    }
   });
 
   router.get('/nameContexts', async (req, res) => {
-    const nameContexts = await NameContext.find({ owner: req.userData.id }).limit(20);
+    const nameContexts = await NameContext.find({ owner: req.userData.id });
 
-    // Set the current user ID for each nameContext to use in the virtual field
-    nameContexts.forEach(nameContext => nameContext.setCurrentUserId(req.userData.id));
-
-    res.status(200).send(nameContexts.map((item) => trimNameContext(req, item)));
+    try {
+      nameContexts.forEach(nameContext => nameContext.setCurrentUserId(req.userData.id));
+      const result = nameContexts.map((item) => trimNameContext(req, item));
+      res.status(200).send(result);
+    }
+    catch (err) {
+      logger.error('Error getting name contexts:', err.message);
+      throw new InternalServerError('Error getting name contexts');
+    }
   });
 
   router.post('/nameContext', async (req, res) => {
@@ -68,7 +82,7 @@ router.get('/nameContext/:id', async (req, res) => {
 
     try {
 
-    const nameContext = await NameContext.findOne({ id });
+      const nameContext = await NameContext.findOne({ id });
 
       // Update fields if they are present in the request body
       if (name) nameContext.name = name;
@@ -85,8 +99,8 @@ router.get('/nameContext/:id', async (req, res) => {
       const result = trimNameContext(req, nameContext);
       res.status(200).send(result);
     } catch (err) {
-      console.error('Error updating name context %s:', id, err.message);
-      res.status(500).send({ message: 'Server error' });
+      logger.error(`Error updating name context ${id}:`, err.message);
+      throw new InternalServerError('Error updating name context');
     }
   });
 
@@ -94,14 +108,14 @@ router.get('/nameContext/:id', async (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
 
-    if (!name) return res.status(400).send({ message: 'Name is required' });
+    if (!name) throw new BadRequestError('Name is required');
 
     const nameContext = await NameContext.findOne({ id });
 
-    if (!nameContext) { return res.status(404).send({ message: `Name context ${id} not found` }); }
+    if (!nameContext) throw new NotFoundError(`Name context ${id} not found`);
 
     if (!nameContext.participants.includes(req.userData.id) && nameContext.owner.toString() !== req.userData.id) {
-      return res.status(403).send({ message: 'You are not authorized to participate with this name context.' });
+      throw new ForbiddenError(`User is not a participant of name context ${id}`);
     }
 
     // Ensure likedNames is initialized
@@ -119,7 +133,7 @@ router.get('/nameContext/:id', async (req, res) => {
     const errors = nameContext.validateSync();
 
     if (errors) {
-      return res.status(400).send({ message: errors.message });
+      res.status(400).send({ message: errors.message });
     }
 
     await nameContext.save();
@@ -132,8 +146,8 @@ router.get('/nameContext/:id', async (req, res) => {
         await NameContext.deleteOne({ id });
         res.status(204).send({ message: `Name context ${id} deleted` });
     } catch (error) {
-        console.log(error);
-        res.status(500).send({ message: `Unable to delete name context ${id}` });
+        logger.error(`Error deleting name context ${id}:`, error.message);
+        throw new InternalServerError(`Error deleting name context ${id}`);
     }
   });
 
