@@ -8,6 +8,14 @@ class BadRequestError extends Error {
     }
 }
 
+class UnauthorizedError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'UnauthorizedError';
+        this.statusCode = 401;
+    }
+}
+
 class ForbiddenError extends Error {
     constructor(message) {
         super(message);
@@ -40,6 +48,7 @@ function errorHandler(err, req, res, next) {
 
 module.exports = {
     NotFoundError,
+    UnauthorizedError,
     BadRequestError,
     ForbiddenError,
     InternalServerError,

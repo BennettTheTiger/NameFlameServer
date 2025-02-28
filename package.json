@@ -21,12 +21,11 @@
   },
   "homepage": "https://github.com/BennettTheTiger/NameFlameServer#readme",
   "dependencies": {
-    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
-    "jsonwebtoken": "^9.0.2",
+    "firebase-admin": "^13.1.0",
     "lodash": "^4.17.21",
     "mongoose": "^8.9.5",
     "socket.io": "^4.8.1",

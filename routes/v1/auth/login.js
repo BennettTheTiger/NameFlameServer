@@ -1,45 +1,29 @@
 const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const _ = require('lodash');
+const admin = require('../../../firebase');
+const User = require('../../../models/user');
+const { BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
 
-const User = require('../../../models/user');
-const { InternalServerError, BadRequestError } = require('../../../middleware/errors');
+const router = express.Router();
 
 router.post('/login', async (req, res, next) => {
-  const { userName, password } = req.body;
+  const { email } = req.body;
 
   try {
-      // Check if the user exists
-      let user = await User.findOne({ userName: { $eq: userName } });
-      if (!user) {
-        logger.log('info', `User ${userName} not found`);
-        throw new BadRequestError('Invalid credentials');
-      }
+    // Verify the user's credentials with Firebase Authentication
+    const userRecord = await admin.auth().getUserByEmail(email);
+    const firebaseToken = await admin.auth().createCustomToken(userRecord.uid);
 
-      // Validate password
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        logger.log('info', `Invalid password for user ${userName}`);
-        throw new BadRequestError('Invalid credentials');
-      }
+    // Retrieve additional user information from MongoDB
+    const user = await User.findOne({ email: { $eq: email } });
+    if (!user) {
+      logger.info(`User with email ${email} not found`);
+      throw new BadRequestError('Invalid credentials');
+    }
 
-      // Generate JWT token
-      const payload = _.pick(user, ['id', 'userName', 'role', 'firstName', 'lastName']);
-
-      jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 3600 },
-      (err, token) => {
-        if (err) {
-            logger.error(`Error generating token: ${err.message}`);
-            throw new InternalServerError('Error generating token');
-        }
-        res.json({ token });
-      });
+    res.status(200).json({ token: firebaseToken, user });
   } catch (err) {
-        logger.error(`Error logging in user: ${err.message}`);
-        next(err);
+    next(err); // Pass the error to the error handling middleware
   }
 });
 
