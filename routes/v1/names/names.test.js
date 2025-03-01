@@ -1,7 +1,6 @@
 const request = require('supertest');
 const express = require('express');
 const Name = require('../../../models/name');
-const { NotFoundError } = require('../../../middleware/errors');
 const router = require('./index');
 const { errorHandler } = require('../../../middleware/errors');
 
