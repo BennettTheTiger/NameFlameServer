@@ -14,6 +14,7 @@ const { login, register } = require('./routes/v1/auth');
 const nameContextRouter = require('./routes/v1/nameContext');
 const nameRouter = require('./routes/v1/names');
 const { errorHandler } = require('./middleware/errors');
+const addSystemUser = require('./middleware/addSystemUser');
 
 // Initialize Server
 const app = express();
@@ -55,9 +56,9 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.use('/api/v1/auth', loginLimiter, login);
 app.use('/api/v1/auth', registerLimiter, register);
-app.use('/api/v1', authMiddleware, defaultLimiter, nameRouter); // TODO but this behind auth middleware
 // protected routes
-app.use('/api/v1', authMiddleware, defaultLimiter, nameContextRouter);
+app.use('/api/v1', defaultLimiter, authMiddleware, nameRouter);
+app.use('/api/v1', defaultLimiter, authMiddleware, addSystemUser, nameContextRouter);
 
 // Real-time collaboration with Socket.io
 io.on('connection', (socket) => {

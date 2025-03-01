@@ -6,3 +6,4 @@ Server for NameFlame App
 
 ## Required .env settings:
 DB_PASSWORD
+FIREBASE_SERVICE_ACCOUNT_KEY
