@@ -1,38 +1,29 @@
 const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const _ = require('lodash');
-
+const admin = require('../../../firebase');
 const User = require('../../../models/user');
+const { BadRequestError } = require('../../../middleware/errors');
+const logger = require('../../../logger');
 
-router.post('/login', async (req, res) => {
-  const { userName, password } = req.body;
+const router = express.Router();
+
+router.post('/login', async (req, res, next) => {
+  const { email } = req.body;
 
   try {
-      // Check if the user exists
-      let user = await User.findOne({ userName: { $eq: userName } });
-      if (!user) {
-          return res.status(401).json({ msg: 'Invalid credentials' });
-      }
+    // Verify the user's credentials with Firebase Authentication
+    const userRecord = await admin.auth().getUserByEmail(email);
+    const firebaseToken = await admin.auth().createCustomToken(userRecord.uid);
 
-      // Validate password
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-          return res.status(401).json({ msg: 'Invalid credentials' });
-      }
+    // Retrieve additional user information from MongoDB
+    const user = await User.findOne({ email: { $eq: email } });
+    if (!user) {
+      logger.info(`User with email ${email} not found`);
+      throw new BadRequestError('Invalid credentials');
+    }
 
-      // Generate JWT token
-      const payload = _.pick(user, ['id', 'userName', 'role', 'firstName', 'lastName']);
-
-      jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 3600 },
-      (err, token) => {
-          if (err) throw err;
-          res.json({ token });
-      });
+    res.status(200).json({ token: firebaseToken, user });
   } catch (err) {
-      console.log(err.message);
-      res.status(500).send('Server Error');
+    next(err); // Pass the error to the error handling middleware
   }
 });
 

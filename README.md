@@ -6,4 +6,4 @@ Server for NameFlame App
 
 ## Required .env settings:
 DB_PASSWORD
-JWT_SECRET
+FIREBASE_SERVICE_ACCOUNT_KEY
