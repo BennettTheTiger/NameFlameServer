@@ -1,12 +1,16 @@
-const jwt = require('jsonwebtoken');
+const admin = require('../firebase');
+const logger = require('../logger');
+const { UnauthorizedError } = require('./errors');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   try {
     const token = req.headers.authorization.split(' ')[1];
-    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+    const decodedToken = await admin.auth().verifyIdToken(token);
     req.userData = decodedToken;
     next();
-  } catch (error) {
-    return res.status(401).json({ error });
+  } catch (err) {
+    logger.info('Error verifying token:', err.message);
+    const error = new UnauthorizedError('Invalid token');
+    next(error);
   }
 };

@@ -1,45 +1,81 @@
 const request = require('supertest');
 const express = require('express');
-const router = require('./index');
 const Name = require('../../../models/name');
-
-jest.mock('../../../models/name');
+const router = require('./index');
+const { errorHandler } = require('../../../middleware/errors');
 
 const app = express();
 app.use(express.json());
 app.use('/api/v1', router);
+app.use(errorHandler);
 
-describe('Names Routes', () => {
-  it('GET /names should return a list of names', async () => {
-    const names = [{ name: 'Bennett' }, { name: 'Nicole' }];
-    Name.find.mockResolvedValue(names);
+jest.mock('../../../models/name');
+jest.mock('../../../logger');
 
-    const response = await request(app).get('/api/v1/names');
-
-    expect(Name.find).toHaveBeenCalledWith();
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual(names);
+describe('Name Routes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  // TODO something is causing this to fail with jest and the .toObject with virtuals is not working
-  it.skip('GET /name/random should return a random name', async () => {
-    const randomName = {
-      name: 'Bennett',
-      popularity: {
-        1996: { males: 123, females: 2 }
-      }
-    };
-    Name.aggregate.mockResolvedValue([randomName]);
+  describe('GET /name/random', () => {
+    it('should return 200 and a random name if found', async () => {
+      const randomName = [{ name: 'John', popularity: new Map([['2021', { male: 100 }]]) }];
+      Name.aggregate.mockResolvedValue(randomName);
+      Name.prototype.toObject = jest.fn().mockReturnValue(randomName[0]);
 
-    const response = await request(app).get('/api/v1/name/random');
+      const res = await request(app)
+        .get('/api/v1/name/random')
+        .set('Authorization', 'Bearer validToken');
 
-    expect(Name.aggregate).toHaveBeenCalledWith([{ $sample: { size: 1 } }]);
-    expect(response.status).toBe(200);
-    const processedRandomName = {
-      name: 'Bennett',
-      popularity: { 2020: { male: 123, females: 2 } },
-      gender: 'male'
-    };
-    expect(response.body).toEqual(processedRandomName);
+      expect(Name.aggregate).toHaveBeenCalledWith([{ $sample: { size: 1 } }]);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        name: 'John',
+        popularity: { '2021': { male: 100 } }
+      });
+    });
+
+    it('should return 404 if no names are found', async () => {
+      Name.aggregate.mockResolvedValue([]);
+
+      const res = await request(app)
+        .get('/api/v1/name/random')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(Name.aggregate).toHaveBeenCalledWith([{ $sample: { size: 1 } }]);
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('No names found');
+    });
+  });
+
+  describe('GET /name/:value', () => {
+    it('should return 200 and the name if found', async () => {
+      const nameResult = { name: 'John', popularity: new Map([['2021', { male: 100 }]]) };
+      Name.findOne.mockResolvedValue(nameResult);
+      Name.prototype.toObject = jest.fn().mockReturnValue(nameResult);
+
+      const res = await request(app)
+        .get('/api/v1/name/John')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(Name.findOne).toHaveBeenCalledWith({ name: { $eq: 'John' } });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        name: 'John',
+        popularity: { '2021': { male: 100 } }
+      });
+    });
+
+    it('should return 404 if the name is not found', async () => {
+      Name.findOne.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/v1/name/John')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(Name.findOne).toHaveBeenCalledWith({ name: { $eq: 'John' } });
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Name John not found');
+    });
   });
 });

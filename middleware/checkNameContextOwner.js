@@ -1,4 +1,5 @@
 const NameContext = require('../models/nameContext');
+const { NotFoundError, ForbiddenError } = require('./errors');
 
 /**
  * Ensures that the user is the owner of the name context before allowing edits
@@ -13,17 +14,16 @@ const checkNameContextOwner = async (req, res, next) => {
   try {
     const nameContext = await NameContext.findOne({ id });
     if (!nameContext) {
-      return res.status(404).send({ message: `Name context ${id} not found` });
+      throw new NotFoundError(`Name context ${id} not found`);
     }
 
-    if (nameContext.owner.toString() !== req.userData.id) {
-      return res.status(403).send({ message: 'You are not authorized to access this name context' });
+    if (nameContext.owner.toString() !== req.systemUser.id) {
+      throw new ForbiddenError(`User is not the owner of name context ${id}`);
     }
 
     next();
   } catch (err) {
-    console.error(`Error checking name context owner:`, err.message);
-    return res.status(500).send({ message: 'Server error' });
+    next(err)
   }
 };
 

@@ -1,66 +1,73 @@
 const request = require('supertest');
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const admin = require('../../../firebase');
 const User = require('../../../models/user');
 const router = require('./login');
+const { errorHandler } = require('../../../middleware/errors');
 
 const app = express();
 app.use(express.json());
 app.use('/api/v1/auth', router);
+app.use(errorHandler);
 
 jest.mock('../../../models/user');
-jest.mock('bcryptjs');
-jest.mock('jsonwebtoken');
+jest.mock('../../../firebase', () => ({
+  auth: jest.fn().mockReturnThis(),
+  getUserByEmail: jest.fn(),
+  createCustomToken: jest.fn()
+}));
+jest.mock('../../../logger');
 
 describe('POST /api/v1/auth/login', () => {
-    it('should return 400 if user does not exist', async () => {
-        User.findOne.mockResolvedValue(null);
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-        const res = await request(app)
-            .post('/api/v1/auth/login')
-            .send({ email: 'test@example.com', password: 'password123' });
+  it('should return 200 and a token if login is successful', async () => {
+    const userRecord = { uid: 'firebaseUid' };
+    const user = { id: '1', email: 'test@example.com' };
+    admin.auth().getUserByEmail.mockResolvedValue(userRecord);
+    admin.auth().createCustomToken.mockResolvedValue('firebaseToken');
+    User.findOne.mockResolvedValue(user);
 
-        expect(res.status).toBe(401);
-        expect(res.body.msg).toBe('Invalid credentials');
-    });
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'test@example.com' });
 
-    it('should return 400 if password does not match', async () => {
-        User.findOne.mockResolvedValue({ email: 'test@example.com', password: 'hashedpassword' });
-        bcrypt.compare.mockResolvedValue(false);
+    expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
+    expect(admin.auth().createCustomToken).toHaveBeenCalledWith('firebaseUid');
+    expect(User.findOne).toHaveBeenCalledWith({ email: { $eq: 'test@example.com' } });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBe('firebaseToken');
+    expect(res.body.user).toEqual(user);
+  });
 
-        const res = await request(app)
-            .post('/api/v1/auth/login')
-            .send({ email: 'test@example.com', password: 'password123' });
+  it('should return 400 if user is not found in MongoDB', async () => {
+    const userRecord = { uid: 'firebaseUid' };
+    admin.auth().getUserByEmail.mockResolvedValue(userRecord);
+    admin.auth().createCustomToken.mockResolvedValue('firebaseToken');
+    User.findOne.mockResolvedValue(null);
 
-        expect(res.status).toBe(401);
-        expect(res.body.msg).toBe('Invalid credentials');
-    });
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'test@example.com' });
 
-    it('should return 200 and a token if login is successful', async () => {
-        const user = { id: '1', userName: 'testuser', role: 'user', email: 'test@example.com', password: 'hashedpassword' };
-        User.findOne.mockResolvedValue(user);
-        bcrypt.compare.mockResolvedValue(true);
-        jwt.sign.mockImplementation((payload, secret, options, callback) => {
-            callback(null, 'token');
-        });
+    expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
+    expect(admin.auth().createCustomToken).toHaveBeenCalledWith('firebaseUid');
+    expect(User.findOne).toHaveBeenCalledWith({ email: { $eq: 'test@example.com' } });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('Invalid credentials');
+  });
 
-        const res = await request(app)
-            .post('/api/v1/auth/login')
-            .send({ email: 'test@example.com', password: 'password123' });
+  it('should return 500 if there is a server error', async () => {
+    admin.auth().getUserByEmail.mockRejectedValue(new Error('Server error'));
 
-        expect(res.status).toBe(200);
-        expect(res.body.token).toBe('token');
-    });
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'test@example.com' });
 
-    it('should return 500 if there is a server error', async () => {
-        User.findOne.mockRejectedValue(new Error('Server Error'));
-
-        const res = await request(app)
-            .post('/api/v1/auth/login')
-            .send({ email: 'test@example.com', password: 'password123' });
-
-        expect(res.status).toBe(500);
-        expect(res.text).toBe('Server Error');
-    });
+    expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
+    expect(res.status).toBe(500);
+    expect(res.body.message).toBe('Server error');
+  });
 });

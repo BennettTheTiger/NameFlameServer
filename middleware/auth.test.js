@@ -1,7 +1,16 @@
-const jwt = require('jsonwebtoken');
+const admin = require('../firebase');
 const authMiddleware = require('./auth');
+const { UnauthorizedError } = require('./errors');
 
-jest.mock('jsonwebtoken');
+jest.mock('../firebase', () => {
+  const originalModule = jest.requireActual('firebase-admin');
+  return {
+    ...originalModule,
+    auth: jest.fn().mockReturnValue({
+      verifyIdToken: jest.fn()
+    })
+  };
+});
 
 describe('Auth Middleware', () => {
   let req, res, next;
@@ -19,37 +28,31 @@ describe('Auth Middleware', () => {
     next = jest.fn();
   });
 
-  it('should call next if token is valid', () => {
-    const decodedToken = { id: 'userId' };
-    jwt.verify.mockReturnValue(decodedToken);
+  it('should call next if token is valid', async () => {
+    const decodedToken = { uid: 'userId' };
+    admin.auth().verifyIdToken.mockResolvedValue(decodedToken);
 
-    authMiddleware(req, res, next);
+    await authMiddleware(req, res, next);
 
-    expect(jwt.verify).toHaveBeenCalledWith('validToken', process.env.JWT_SECRET);
+    expect(admin.auth().verifyIdToken).toHaveBeenCalledWith('validToken');
     expect(req.userData).toEqual(decodedToken);
     expect(next).toHaveBeenCalled();
   });
 
-  it('should return 401 if token is invalid', () => {
-    jwt.verify.mockImplementation(() => {
-      throw new Error('Invalid token');
-    });
+  it('should return 401 if token is invalid', async () => {
+    admin.auth().verifyIdToken.mockRejectedValue(new Error('Invalid token'));
 
-    authMiddleware(req, res, next);
+    await authMiddleware(req, res, next);
 
-    expect(jwt.verify).toHaveBeenCalledWith('validToken', process.env.JWT_SECRET);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: new Error('Invalid token') });
-    expect(next).not.toHaveBeenCalled();
+    expect(admin.auth().verifyIdToken).toHaveBeenCalledWith('validToken');
+    expect(next).toHaveBeenCalledWith(new UnauthorizedError('Invalid token'));
   });
 
-  it('should return 401 if no token is provided', () => {
+  it('should return 401 if no token is provided', async () => {
     req.headers.authorization = '';
 
-    authMiddleware(req, res, next);
+    await authMiddleware(req, res, next);
 
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: new Error('Invalid token') });
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(new UnauthorizedError('Invalid token'));
   });
 });
