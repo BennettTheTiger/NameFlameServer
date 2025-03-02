@@ -10,7 +10,7 @@ describe('Check Name Context Owner Middleware', () => {
   beforeEach(() => {
     req = {
       params: { id: 'contextId' },
-      userData: { id: 'userId' }
+      systemUser: { id: 'userId' }
     };
     res = {
       status: jest.fn().mockReturnThis(),

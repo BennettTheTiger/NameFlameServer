@@ -17,7 +17,7 @@ const checkNameContextOwner = async (req, res, next) => {
       throw new NotFoundError(`Name context ${id} not found`);
     }
 
-    if (nameContext.owner.toString() !== req.userData.id) {
+    if (nameContext.owner.toString() !== req.systemUser.id) {
       throw new ForbiddenError(`User is not the owner of name context ${id}`);
     }
 

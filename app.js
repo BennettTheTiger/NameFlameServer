@@ -15,6 +15,7 @@ const nameContextRouter = require('./routes/v1/nameContext');
 const nameRouter = require('./routes/v1/names');
 const { errorHandler } = require('./middleware/errors');
 const addSystemUser = require('./middleware/addSystemUser');
+const userRouter = require('./routes/v1/user');
 
 // Initialize Server
 const app = express();
@@ -59,6 +60,7 @@ app.use('/api/v1/auth', registerLimiter, register);
 // protected routes
 app.use('/api/v1', defaultLimiter, authMiddleware, nameRouter);
 app.use('/api/v1', defaultLimiter, authMiddleware, addSystemUser, nameContextRouter);
+app.use('/api/v1', defaultLimiter, authMiddleware, addSystemUser, userRouter);
 
 // Real-time collaboration with Socket.io
 io.on('connection', (socket) => {

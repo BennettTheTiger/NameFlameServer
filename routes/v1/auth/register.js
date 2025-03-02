@@ -1,33 +1,40 @@
 const express = require('express');
 const admin = require('../../../firebase');
 const User = require('../../../models/user');
-const { BadRequestError } = require('../../../middleware/errors');
+const { BadRequestError, InternalServerError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
 router.post('/register', async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, userName } = req.body;
 
   try {
-    // Create a new user in Firebase Authentication
-    let firebaseUser = await admin.auth().getUserByEmail(email);
-    if (firebaseUser) {
+    let firebaseUser;
+    try {
+      // Check if the user already exists in Firebase Authentication
+      firebaseUser = await admin.auth().getUserByEmail(email);
       logger.info(`User with email ${email} already exists in Firebase`);
-    }
-    else {
-        firebaseUser = await admin.auth().createUser({
-            email,
-            password,
-        });
-        logger.info(`Email ${email} created in Firebase with UID: ${firebaseUser.uid}`);
+    } catch {
+      logger.info(`User with email ${email} does not exist in Firebase`);
+      // Create a new user in Firebase Authentication
+      firebaseUser = await admin.auth().createUser({
+        displayName: userName,
+        email,
+        password,
+      });
     }
 
-    const existingUser = await User.findOne({ fireBaseUid: { $eq: firebaseUser.uid } });
+    if (!firebaseUser) {
+      throw new InternalServerError('Failed to retrieve or create user');
+    }
+    logger.info(`Email ${email} created in Firebase with UID: ${firebaseUser.uid}`);
+
+    const existingUser = await User.findOne({ firebaseUid: { $eq: firebaseUser.uid } });
     if (existingUser) {
-        logger.info(`A firebase user with UID ${firebaseUser.uid} already exists in MongoDB`);
-        throw new BadRequestError('User already exists, please login');
+      logger.info(`A firebase user with UID ${firebaseUser.uid} already exists in MongoDB`);
+      throw new BadRequestError('User already exists, please login');
     }
 
     // Create a new user in MongoDB

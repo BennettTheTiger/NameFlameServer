@@ -111,6 +111,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
   router.patch('/nameContext/:id/match', async (req, res, next) => {
     const { id } = req.params;
     const { name } = req.body;
+    const userSystemId = req.systemUser.id;
 
     try {
       if (!name) throw new BadRequestError('Name is required');
@@ -119,7 +120,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
 
       if (!nameContext) throw new NotFoundError(`Name context ${id} not found`);
 
-      if (!nameContext.participants.includes(req.userData.id) && nameContext.owner.toString() !== req.userData.id) {
+      if (!nameContext.participants.includes(userSystemId) && nameContext.owner.toString() !== userSystemId) {
         throw new ForbiddenError(`User is not a participant of name context ${id}`);
       }
 
@@ -129,11 +130,11 @@ router.get('/nameContext/:id', async (req, res, next) => {
       }
 
       // Add the name to the likedNames array with the user's ID as the key
-      if (!nameContext.likedNames.has(req.userData.id)) {
-        nameContext.likedNames.set(req.userData.id, []);
+      if (!nameContext.likedNames.has(userSystemId)) {
+        nameContext.likedNames.set(userSystemId, []);
       }
 
-      nameContext.likedNames.get(req.userData.id).push(name);
+      nameContext.likedNames.get(userSystemId).push(name);
 
       const errors = nameContext.validateSync();
 
@@ -142,6 +143,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
       }
 
       await nameContext.save();
+      logger.info(`Match ${name} added to name context ${id}`);
       res.status(201).send(nameContext.toObject());
     } catch (err) {
       logger.error('Error adding match to name context:', err.message);
