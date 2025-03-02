@@ -29,7 +29,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
         throw new NotFoundError(`Name context ${id} not found`);
       }
 
-      nameContext.setCurrentUserId(req.userData.id);
+      nameContext.setCurrentUserId(req.systemUser.id);
       const nameContextResult = trimNameContext(req, nameContext);
       res.status(200).send(nameContextResult);
     }
@@ -39,10 +39,10 @@ router.get('/nameContext/:id', async (req, res, next) => {
   });
 
   router.get('/nameContexts', async (req, res, next) => {
-    const nameContexts = await NameContext.find({ owner: req.userData.id });
+    const nameContexts = await NameContext.find({ owner: req.systemUser.id });
 
     try {
-      nameContexts.forEach(nameContext => nameContext.setCurrentUserId(req.userData.id));
+      nameContexts.forEach(nameContext => nameContext.setCurrentUserId(req.systemUser.id));
       const result = nameContexts.map((item) => trimNameContext(req, item));
       res.status(200).send(result);
     }
@@ -60,7 +60,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
         name,
         description,
         noun,
-        owner: req.userData.id, // from authMiddleware
+        owner: req.systemUser.id, // from addSystemUser middleware
         id: uuidv4(),
         participants: [], // TODO add participants
         filters: filters
@@ -69,7 +69,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
       const errors = newNameContext.validateSync();
 
       if (errors) {
-        return res.status(400).send({ message: errors.message });
+        throw new BadRequestError(errors.message, errors.errors);
       }
 
       await newNameContext.save();

@@ -54,7 +54,7 @@ describe('Error Handling Middleware', () => {
     errorHandler(error, req, res, next);
     expect(logger.error).toHaveBeenCalledWith(error.stack);
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Bad request' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'Bad request', error: {} });
   });
 
   it('should log the error and send a 403 response for ForbiddenError', () => {
@@ -62,7 +62,7 @@ describe('Error Handling Middleware', () => {
     errorHandler(error, req, res, next);
     expect(logger.error).toHaveBeenCalledWith(error.stack);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Forbidden' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'Forbidden' });
   });
 
   it('should log the error and send a 404 response for NotFoundError', () => {
@@ -70,7 +70,7 @@ describe('Error Handling Middleware', () => {
     errorHandler(error, req, res, next);
     expect(logger.error).toHaveBeenCalledWith(error.stack);
     expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Not found' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'Not found' });
   });
 
   it('should log the error and send a 500 response for InternalServerError', () => {
@@ -78,7 +78,7 @@ describe('Error Handling Middleware', () => {
     errorHandler(error, req, res, next);
     expect(logger.error).toHaveBeenCalledWith(error.stack);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'Internal server error' });
   });
 
   it('should log the error and send a 500 response for an unknown error', () => {
@@ -86,6 +86,6 @@ describe('Error Handling Middleware', () => {
     errorHandler(error, req, res, next);
     expect(logger.error).toHaveBeenCalledWith(error.stack);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Unknown error' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'Unknown error' });
   });
 });

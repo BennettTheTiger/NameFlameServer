@@ -35,13 +35,12 @@ describe('POST /api/v1/auth/register', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+      .send({ email: 'test@example.com', password: 'password123' });
 
     expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
     expect(admin.auth().createUser).toHaveBeenCalledWith({
       email: 'test@example.com',
-      password: 'password123',
-      displayName: 'testuser'
+      password: 'password123'
     });
     expect(User.findOne).toHaveBeenCalledWith({ fireBaseUid: { $eq: 'firebaseUid' } });
     expect(User.prototype.save).toHaveBeenCalled();
@@ -54,7 +53,7 @@ describe('POST /api/v1/auth/register', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+      .send({ email: 'test@example.com', password: 'password123' });
 
     expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
     expect(res.status).toBe(200);
@@ -69,17 +68,16 @@ describe('POST /api/v1/auth/register', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+      .send({ email: 'test@example.com', password: 'password123' });
 
     expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
     expect(admin.auth().createUser).toHaveBeenCalledWith({
       email: 'test@example.com',
-      password: 'password123',
-      displayName: 'testuser'
+      password: 'password123'
     });
     expect(User.findOne).toHaveBeenCalledWith({ fireBaseUid: { $eq: 'firebaseUid' } });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('User already exists, please login');
+    expect(res.body.message).toBe('User already exists, please login');
   });
 
   it('should return 400 if validation fails', async () => {
@@ -92,17 +90,16 @@ describe('POST /api/v1/auth/register', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+      .send({ email: 'test@example.com', password: 'password123' });
 
     expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
     expect(admin.auth().createUser).toHaveBeenCalledWith({
       email: 'test@example.com',
-      password: 'password123',
-      displayName: 'testuser'
+      password: 'password123'
     });
     expect(User.findOne).toHaveBeenCalledWith({ fireBaseUid: { $eq: 'firebaseUid' } });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Validation error');
+    expect(res.body.message).toBe('Validation error');
   });
 
   it('should return 500 if there is a server error', async () => {
@@ -110,10 +107,10 @@ describe('POST /api/v1/auth/register', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+      .send({ email: 'test@example.com', password: 'password123' });
 
     expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Server error');
+    expect(res.body.message).toBe('Server error');
   });
 });

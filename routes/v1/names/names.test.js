@@ -44,7 +44,7 @@ describe('Name Routes', () => {
 
       expect(Name.aggregate).toHaveBeenCalledWith([{ $sample: { size: 1 } }]);
       expect(res.status).toBe(404);
-      expect(res.body.error).toBe('No names found');
+      expect(res.body.message).toBe('No names found');
     });
   });
 
@@ -75,7 +75,7 @@ describe('Name Routes', () => {
 
       expect(Name.findOne).toHaveBeenCalledWith({ name: { $eq: 'John' } });
       expect(res.status).toBe(404);
-      expect(res.body.error).toBe('Name John not found');
+      expect(res.body.message).toBe('Name John not found');
     });
   });
 });

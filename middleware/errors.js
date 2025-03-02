@@ -1,10 +1,11 @@
 const logger = require('../logger');
 
 class BadRequestError extends Error {
-    constructor(message) {
+    constructor(message, error = {}) {
         super(message);
         this.name = 'BadRequestError';
         this.statusCode = 400;
+        this.error = error;
     }
 }
 
@@ -43,7 +44,11 @@ class InternalServerError extends Error {
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
     logger.error(err.stack);
-    res.status(err.statusCode || 500).json({ error: err.message });
+    const errorPayload = { message: err.message };
+    if (err.error) {
+        errorPayload.error = err.error;
+    }
+    res.status(err.statusCode || 500).json(errorPayload);
 }
 
 module.exports = {

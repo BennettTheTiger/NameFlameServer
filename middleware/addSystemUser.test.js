@@ -24,7 +24,7 @@ describe('addSystemUser Middleware', () => {
   });
 
   it('should assign existing user to req.systemUser if user exists', async () => {
-    const existingUser = { id: '1', userName: 'testuser', email: 'test@example.com', firebaseUid: 'firebaseUid' };
+    const existingUser = { id: '1', email: 'test@example.com', firebaseUid: 'firebaseUid' };
     User.findOne.mockResolvedValue(existingUser);
 
     await addSystemUser(req, res, next);
@@ -41,7 +41,6 @@ describe('addSystemUser Middleware', () => {
     User.prototype.save = jest.fn().mockResolvedValue({});
     User.prototype.toObject = jest.fn().mockReturnValue({
       email: 'test@example.com',
-      userName: 'testuser',
       id: 'unique-id',
       firebaseUid: 'firebaseUid'
     });
@@ -52,7 +51,6 @@ describe('addSystemUser Middleware', () => {
     expect(User.prototype.save).toHaveBeenCalled();
     expect(req.systemUser).toEqual(expect.objectContaining({
       email: 'test@example.com',
-      userName: 'testuser',
       id: 'unique-id',
       firebaseUid: 'firebaseUid'
     }));

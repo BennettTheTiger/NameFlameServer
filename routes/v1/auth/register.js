@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
 router.post('/register', async (req, res, next) => {
-  const { email, password, userName } = req.body;
+  const { email, password } = req.body;
 
   try {
     // Create a new user in Firebase Authentication
@@ -20,9 +20,8 @@ router.post('/register', async (req, res, next) => {
         firebaseUser = await admin.auth().createUser({
             email,
             password,
-            displayName: userName,
         });
-        logger.info(`User ${userName} created in Firebase with UID: ${firebaseUser.uid}`);
+        logger.info(`Email ${email} created in Firebase with UID: ${firebaseUser.uid}`);
     }
 
     const existingUser = await User.findOne({ fireBaseUid: { $eq: firebaseUser.uid } });
@@ -34,7 +33,6 @@ router.post('/register', async (req, res, next) => {
     // Create a new user in MongoDB
     const newUser = new User({
       email,
-      userName,
       id: uuidv4(), // Generate a random ID
       firebaseUid: firebaseUser.uid, // Store the Firebase UID
     });
@@ -47,7 +45,7 @@ router.post('/register', async (req, res, next) => {
 
     // Save the new user in MongoDB
     await newUser.save();
-    logger.info(`User ${userName} created in MongoDB with ID: ${newUser.id}`);
+    logger.info(`User ${email} created in MongoDB with ID: ${newUser.id}`);
 
     res.status(200).send('User registered successfully');
   } catch (err) {

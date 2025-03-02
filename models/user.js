@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const User = mongoose.model('User', new mongoose.Schema({
-    userName: { type: String, required: true },
     allowNotifications: { type: Boolean, default: true },
     email: { type: String, required: true },
     id: { type: String, unique: true },

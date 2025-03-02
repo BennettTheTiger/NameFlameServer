@@ -25,7 +25,7 @@ describe('POST /api/v1/auth/login', () => {
 
   it('should return 200 and a token if login is successful', async () => {
     const userRecord = { uid: 'firebaseUid' };
-    const user = { id: '1', userName: 'testuser', email: 'test@example.com' };
+    const user = { id: '1', email: 'test@example.com' };
     admin.auth().getUserByEmail.mockResolvedValue(userRecord);
     admin.auth().createCustomToken.mockResolvedValue('firebaseToken');
     User.findOne.mockResolvedValue(user);
@@ -56,7 +56,7 @@ describe('POST /api/v1/auth/login', () => {
     expect(admin.auth().createCustomToken).toHaveBeenCalledWith('firebaseUid');
     expect(User.findOne).toHaveBeenCalledWith({ email: { $eq: 'test@example.com' } });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Invalid credentials');
+    expect(res.body.message).toBe('Invalid credentials');
   });
 
   it('should return 500 if there is a server error', async () => {
@@ -68,6 +68,6 @@ describe('POST /api/v1/auth/login', () => {
 
     expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Server error');
+    expect(res.body.message).toBe('Server error');
   });
 });

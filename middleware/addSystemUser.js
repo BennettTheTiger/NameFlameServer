@@ -12,7 +12,6 @@ module.exports = async (req, res, next) => {
 
       const newUser = new User({
         email: req.userData.email,
-        userName: req.userData.name,
         id: uuidv4(),
         firebaseUid: req.userData.uid,
       });
