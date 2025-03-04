@@ -1,18 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const _ = require('lodash');
 const NameContext = require('../../../models/nameContext');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
 
 function trimNameContext(req, nameContext) {
-  const userId = req.userData.id;
+  const userId = req.systemUser.id;
   const result = nameContext.toObject();
   if (result.likedNames instanceof Map) {
     // only pick the liked names for the current user
-    result.likedNames = _.pick(Object.fromEntries(result.likedNames), [userId]);
+    const likedNames = Object.fromEntries(result.likedNames);
+    result.likedNames = likedNames[userId] || [];
   }
   delete result._id;
   delete result.owner;
