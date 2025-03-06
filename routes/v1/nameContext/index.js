@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const processNameResult = require('../names/utils');
 const { v4: uuidv4 } = require('uuid');
 const NameContext = require('../../../models/nameContext');
+const Name = require('../../../models/name');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
@@ -82,12 +84,10 @@ router.get('/nameContext/:id', async (req, res, next) => {
   });
 
   router.patch('/nameContext/:id', checkNameContextOwner, async (req, res, next) => {
-    const { id } = req.params;
     const { name, description, filter, participants } = req.body;
 
     try {
-
-      const nameContext = await NameContext.findOne({ id });
+      const nameContext = req.nameContext;
 
       // Update fields if they are present in the request body
       if (name) nameContext.name = name;
@@ -108,6 +108,46 @@ router.get('/nameContext/:id', async (req, res, next) => {
       next(err);
     }
   });
+
+router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async (req, res, next) => {
+  const { limit = 10 } = req.query;
+  const { nameContext } = req;
+
+  try {
+     // Parse the filter from nameContext
+     const filter = nameContext.filter || {};
+
+     // Build the MongoDB query based on the filter
+     const mongoQuery = {};
+     if (filter.startsWithLetter) {
+       mongoQuery.name = { $regex: `^${filter.startsWithLetter}`, $options: 'i' };
+     }
+     if (filter.maxCharacters) {
+       mongoQuery.$expr = { $lte: [{ $strLenCP: "$name" }, filter.maxCharacters] };
+     }
+
+    // Exclude names that the user has already liked
+    const likedNames = nameContext.likedNames || new Map();
+    const userLikedNames = likedNames.get(req.systemUser.id) || [];
+    if (userLikedNames.length > 0) {
+      mongoQuery.name = { ...mongoQuery.name, $nin: userLikedNames };
+    }
+
+    const sizeLimit = Math.min(parseInt(limit || 0, 10), 50);
+
+    const names = await Name.aggregate([
+      { $match: mongoQuery },
+      { $sample: { size: sizeLimit } } // Randomly sample the results
+    ]);
+
+     const processNameResults = names.map(processNameResult);
+    // Return the filtered names
+    res.status(200).send(processNameResults);
+  } catch (err) {
+    logger.error('Error fetching next set of names:', err.message);
+    next(err);
+  }
+});
 
   router.patch('/nameContext/:id/match', checkNameContextOwnerOrPartipant, async (req, res, next) => {
     const { id } = req.params;
