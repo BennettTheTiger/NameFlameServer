@@ -56,7 +56,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
   });
 
   router.post('/nameContext', async (req, res, next) => {
-    const { name, description, filters, noun } = req.body;
+    const { name, description, filter, noun } = req.body;
 
     try {
       const newNameContext = new NameContext({
@@ -66,7 +66,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
         owner: req.systemUser.id, // from addSystemUser middleware
         id: uuidv4(),
         participants: [], // TODO add participants
-        filters: filters
+        filter: filter
       });
 
       const errors = newNameContext.validateSync();
@@ -135,14 +135,41 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
 
     const sizeLimit = Math.min(parseInt(limit || 0, 10), 50);
 
-    const names = await Name.aggregate([
+    // Use MongoDB aggregation to apply the filter and sample the results
+    const namesResults = await Name.aggregate([
       { $match: mongoQuery },
       { $sample: { size: sizeLimit } } // Randomly sample the results
     ]);
 
-     const processNameResults = names.map(processNameResult);
+    let names = namesResults.map(processNameResult);
+
+    // Filter out names that don't match the specified gender
+    if (filter.gender && filter.gender !== 'neutral') {
+      names = names.filter(name => name.gender === filter.gender);
+    }
+
+    // If there are not enough names, get more names
+    while (names.length < sizeLimit) {
+      const additionalNamesResult = await Name.aggregate([
+        { $match: mongoQuery },
+        { $sample: { size: sizeLimit - names.length } } // Randomly sample the remaining results
+      ]).then(results => results.map(processNameResult));
+
+      let additionalNames = additionalNamesResult.filter(name => !names.some(n => n.name === name.name));
+
+      if (filter.gender && filter.gender !== 'neutral') {
+        additionalNames = additionalNames.filter(name => name.gender === filter.gender);
+      }
+
+      names.push(...additionalNames);
+
+      if (additionalNames.length === 0) {
+        logger.info('No more names to fetch with filter', JSON.stringify(filter));
+        break; // No more names to fetch didnt get enough names to meet the target sizeLimit
+      }
+    }
     // Return the filtered names
-    res.status(200).send(processNameResults);
+    res.status(200).send(names);
   } catch (err) {
     logger.error('Error fetching next set of names:', err.message);
     next(err);
