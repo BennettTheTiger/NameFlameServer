@@ -1,18 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const _ = require('lodash');
 const NameContext = require('../../../models/nameContext');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
-const { NotFoundError, BadRequestError, ForbiddenError } = require('../../../middleware/errors');
+const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
+const checkNameContextOwnerOrPartipant = require('../../../middleware/checkNameContextOwnerOrParticipant');
 
 function trimNameContext(req, nameContext) {
-  const userId = req.userData.id;
+  const userId = req.systemUser.id;
   const result = nameContext.toObject();
   if (result.likedNames instanceof Map) {
     // only pick the liked names for the current user
-    result.likedNames = _.pick(Object.fromEntries(result.likedNames), [userId]);
+    const likedNames = Object.fromEntries(result.likedNames);
+    result.likedNames = likedNames[userId] || [];
   }
   delete result._id;
   delete result.owner;
@@ -108,7 +109,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
     }
   });
 
-  router.patch('/nameContext/:id/match', async (req, res, next) => {
+  router.patch('/nameContext/:id/match', checkNameContextOwnerOrPartipant, async (req, res, next) => {
     const { id } = req.params;
     const { name } = req.body;
     const userSystemId = req.systemUser.id;
@@ -117,12 +118,6 @@ router.get('/nameContext/:id', async (req, res, next) => {
       if (!name) throw new BadRequestError('Name is required');
 
       const nameContext = await NameContext.findOne({ id });
-
-      if (!nameContext) throw new NotFoundError(`Name context ${id} not found`);
-
-      if (!nameContext.participants.includes(userSystemId) && nameContext.owner.toString() !== userSystemId) {
-        throw new ForbiddenError(`User is not a participant of name context ${id}`);
-      }
 
       // Ensure likedNames is initialized
       if (!nameContext.likedNames) {
@@ -134,7 +129,12 @@ router.get('/nameContext/:id', async (req, res, next) => {
         nameContext.likedNames.set(userSystemId, []);
       }
 
-      nameContext.likedNames.get(userSystemId).push(name);
+      const userLikedNames = nameContext.likedNames.get(userSystemId);
+
+      // Check if the name already exists in the array
+      if (!userLikedNames.includes(name)) {
+        userLikedNames.push(name);
+      }
 
       const errors = nameContext.validateSync();
 
@@ -144,7 +144,42 @@ router.get('/nameContext/:id', async (req, res, next) => {
 
       await nameContext.save();
       logger.info(`Match ${name} added to name context ${id}`);
-      res.status(201).send(nameContext.toObject());
+      res.status(201).send(trimNameContext(req, nameContext));
+    } catch (err) {
+      logger.error('Error adding match to name context:', err.message);
+      next(err);
+    }
+  });
+
+  router.patch('/nameContext/:id/removeNames', checkNameContextOwnerOrPartipant, async (req, res, next) => {
+    const { id } = req.params;
+    const { names } = req.body;
+    const userSystemId = req.systemUser.id;
+
+    try {
+      const nameContext = await NameContext.findOne({ id });
+
+      // Ensure likedNames is initialized
+      if (!nameContext.likedNames) {
+        nameContext.likedNames = new Map();
+      }
+
+      // Check if the user has liked names
+      if (nameContext.likedNames.has(userSystemId)) {
+        // Remove the specified names from the user's liked names array
+        const updatedLikedNames = nameContext.likedNames.get(userSystemId).filter(name => !names.includes(name));
+        nameContext.likedNames.set(userSystemId, updatedLikedNames);
+      }
+
+      const errors = nameContext.validateSync();
+
+      if (errors) {
+        throw new BadRequestError(errors.message);
+      }
+
+      await nameContext.save();
+      logger.info(`${names} removed from name context ${id}`);
+      res.status(201).send(trimNameContext(req, nameContext));
     } catch (err) {
       logger.error('Error adding match to name context:', err.message);
       next(err);
