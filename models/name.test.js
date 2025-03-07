@@ -17,7 +17,7 @@ afterAll(async () => {
 
 describe('Name Model', () => {
   it('should create a name with required fields', async () => {
-    const nameData = { name: 'Bennett', meaning: 'Best dev ever' };
+    const nameData = { name: 'Bennett', about: 'Best dev ever' };
     const name = new Name(nameData);
     await name.save();
 
