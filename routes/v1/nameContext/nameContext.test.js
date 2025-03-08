@@ -2,6 +2,7 @@ const request = require('supertest');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const NameContext = require('../../../models/nameContext');
+const Name = require('../../../models/name');
 const router = require('./index');
 const { errorHandler } = require('../../../middleware/errors');
 
@@ -10,10 +11,10 @@ app.use(express.json());
 
 // Middleware to mock authentication and user data
 app.use((req, res, next) => {
-    req.userData = { uid: 'firebaseUid' };
-    req.systemUser = { id: 'userSystemId' };
-    next();
-  });
+  req.userData = { uid: 'firebaseUid' };
+  req.systemUser = { id: 'userSystemId' };
+  next();
+});
 
 app.use('/api/v1', router);
 app.use(errorHandler);
@@ -340,6 +341,62 @@ describe('NameContext Routes', () => {
         .set('Authorization', 'Bearer validToken');
 
       expect(NameContext.deleteOne).toHaveBeenCalledWith({ id: 'contextId' });
+      expect(res.status).toBe(500);
+      expect(res.body.message).toBe('Server error');
+    });
+  });
+
+  describe('GET /nameContext/:id/nextNames', () => {
+    it.skip('should return 200 and the next set of names', async () => {
+      const nameContext = {
+        id: 'contextId',
+        owner: 'userSystemId',
+        filter: { startsWithLetter: 'A', maxCharacters: 10, gender: 'male' },
+        likedNames: new Map([['userSystemId', ['Aaron']]])
+      };
+      const commonPopularity = { 2004: { males: 4, females: 1 }};
+      const names = [
+        { name: 'Adam', popularity: commonPopularity },
+        { name: 'Andrew', popularity: commonPopularity }
+      ];
+      NameContext.findOne.mockResolvedValue(nameContext);
+      Name.aggregate.mockResolvedValue(names);
+      Name.toObject = jest.fn().mockReturnValue(this);
+
+
+      const res = await request(app)
+        .get('/api/v1/nameContext/contextId/nextNames')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
+      expect(Name.aggregate).toHaveBeenCalledWith([
+        { $match: { $expr: { $lte: [{ $strLenCP: '$name' }, 10] }, name: { $nin: ['Aaron'], $regex: '^A', $options: 'i' } } },
+        { $sample: { size: 10 } }
+      ]);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(names);
+    });
+
+    it('should return 404 if name context is not found', async () => {
+      NameContext.findOne.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/v1/nameContext/contextId/nextNames')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Name context contextId not found');
+    });
+
+    it('should return 500 if there is a server error', async () => {
+      NameContext.findOne.mockRejectedValue(new Error('Server error'));
+
+      const res = await request(app)
+        .get('/api/v1/nameContext/contextId/nextNames')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
       expect(res.status).toBe(500);
       expect(res.body.message).toBe('Server error');
     });
