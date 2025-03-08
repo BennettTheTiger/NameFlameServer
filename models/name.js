@@ -7,8 +7,11 @@ const popularitySchema = new mongoose.Schema({
 
 const nameSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
-  origin: { type: String },
+  usage: [{ type: String }],
+  about: { type: String },
   meaning: { type: String },
+  origin: { type: String },
+  pronunciation: { type: String },
   popularity: {
     type: Map,
     of: popularitySchema

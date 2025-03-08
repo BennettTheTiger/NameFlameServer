@@ -13,6 +13,7 @@ const checkNameContextOwnerOrPartipant = async (req, res, next) => {
 
   try {
     const nameContext = await NameContext.findOne({ id });
+    req.nameContext = nameContext; // the name context to the request object
     if (!nameContext) {
       throw new NotFoundError(`Name context ${id} not found`);
     }
