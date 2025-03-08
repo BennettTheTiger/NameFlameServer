@@ -9,6 +9,9 @@ const nameSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
   usage: [{ type: String }],
   about: { type: String },
+  meaning: { type: String },
+  origin: { type: String },
+  pronunciation: { type: String },
   popularity: {
     type: Map,
     of: popularitySchema
