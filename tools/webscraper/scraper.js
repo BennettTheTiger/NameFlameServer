@@ -59,7 +59,7 @@ async function getNameDefinitionv2(name) {
   }
 
 async function processNames() {
-  const uri = `mongodb+srv://nameflameserver:pwIFZ35AUgb2kBfM@cluster0.b9oa5.mongodb.net/app-data?retryWrites=true&w=majority&appName=Cluster0`; // Replace with your MongoDB connection string
+  const uri = `mongodb+srv://nameflameserver:${process.env.DB_PASSWORD}@cluster0.b9oa5.mongodb.net/app-data?retryWrites=true&w=majority&appName=Cluster0`; // Replace with your MongoDB connection string
   const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
   let namesCounted = 1;
