@@ -40,7 +40,7 @@ const loginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 2,
+  max: 7,
 });
 
 // Middleware

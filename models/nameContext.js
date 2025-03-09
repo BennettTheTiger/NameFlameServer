@@ -12,8 +12,8 @@ const NameContextSchema = new mongoose.Schema({
     id: { type: String, unique: true },
     description: { type: String, default: '' },
     noun: { type: String },
-    owner: { type: String, ref: 'User', required: true },
-    participants: [{ type: Schema.Types.UUID, ref: 'User' }],
+    owner: { type: String, required: true },
+    participants: [{ type: String }],
     likedNames: { type: Schema.Types.Map, of: [String] },
     filter: NameFilterSchema
   }, {
