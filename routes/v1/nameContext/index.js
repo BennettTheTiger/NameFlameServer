@@ -3,10 +3,13 @@ const router = express.Router();
 const processNameResult = require('../names/utils');
 const { v4: uuidv4 } = require('uuid');
 const NameContext = require('../../../models/nameContext');
+const Invitation = require('../../../models/invitations');
+const Users = require('../../../models/user');
 const Name = require('../../../models/name');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
+const sendEmail = require('../../../mailer/nodemailer');
 const checkNameContextOwnerOrPartipant = require('../../../middleware/checkNameContextOwnerOrParticipant');
 
 function trimNameContext(req, nameContext) {
@@ -84,7 +87,7 @@ router.get('/nameContext/:id', async (req, res, next) => {
   });
 
   router.patch('/nameContext/:id', checkNameContextOwner, async (req, res, next) => {
-    const { name, description, filter, participants } = req.body;
+    const { name, description, filter } = req.body;
 
     try {
       const nameContext = req.nameContext;
@@ -93,7 +96,6 @@ router.get('/nameContext/:id', async (req, res, next) => {
       if (name) nameContext.name = name;
       if (description) nameContext.description = description;
       if (filter) nameContext.filter = filter;
-      if (participants) nameContext.participants = participants;
 
       const errors = nameContext.validateSync();
       if (errors) {
@@ -101,6 +103,35 @@ router.get('/nameContext/:id', async (req, res, next) => {
       }
 
       await nameContext.save();
+      const result = trimNameContext(req, nameContext);
+      res.status(200).send(result);
+    } catch (err) {
+      logger.error('Error updating name context:', err.message);
+      next(err);
+    }
+  });
+
+  router.post('/nameContext/:id/participant', checkNameContextOwner, async (req, res, next) => {
+    const { email } = req.body;
+
+    try {
+      const nameContext = req.nameContext;
+
+      const userRecord = await Users.findOne({ email });
+      if (!userRecord) {
+        const invite = new Invitation({
+          email,
+          nameContextId: nameContext.id
+        });
+        await invite.save();
+        await sendEmail(email, 'Invitation to join Name Flame', 'You have been invited to join Name Flame', '<p>You have been invited to join Name Flame</p>');
+        logger.info(`Invitation sent to ${email} for name context ${nameContext.id}`);
+        return res.status(201).send({ message: 'Invitation sent' });
+      }
+
+      nameContext.participants.push(userRecord.id);
+      await nameContext.save();
+
       const result = trimNameContext(req, nameContext);
       res.status(200).send(result);
     } catch (err) {
