@@ -4,6 +4,8 @@ const User = require('../../../models/user');
 const { BadRequestError, InternalServerError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
 const { v4: uuidv4 } = require('uuid');
+const Invitation = require('../../../models/invitations');
+const NameContext = require('../../../models/nameContext');
 
 const router = express.Router();
 
@@ -53,6 +55,24 @@ router.post('/register', async (req, res, next) => {
     // Save the new user in MongoDB
     await newUser.save();
     logger.info(`User ${email} created in MongoDB with ID: ${newUser.id}`);
+
+    // check if the user has invites to name contexts
+    const invites = await Invitation.find({ email: { $eq: email } });
+    if (invites.length > 0) {
+      logger.info(`User ${email} has ${invites.length} invites to name contexts`);
+      // Add the user to the name contexts
+      for (const invite of invites) {
+        const nameContext = await NameContext.findOne({ id: { $eq: invite.nameContextId } });
+        if (nameContext) {
+          nameContext.participants.push(newUser.id);
+          await nameContext.save();
+          logger.info(`User ${email} added to name context ${nameContext.name}`);
+        }
+      }
+      // Delete the invites
+      await Invitation.deleteMany({ email: { $eq: email } });
+      logger.info(`Invites for ${email} deleted`);
+    }
 
     res.status(200).send('User registered successfully');
   } catch (err) {

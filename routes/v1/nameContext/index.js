@@ -1,4 +1,6 @@
 const express = require('express');
+const validator = require('validator');
+const _ = require('lodash');
 const router = express.Router();
 const processNameResult = require('../names/utils');
 const { v4: uuidv4 } = require('uuid');
@@ -9,7 +11,7 @@ const Name = require('../../../models/name');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
-const sendEmail = require('../../../mailer/nodemailer');
+const sendEmail = require('../../../mailer/sendgrid');
 const checkNameContextOwnerOrPartipant = require('../../../middleware/checkNameContextOwnerOrParticipant');
 
 function trimNameContext(req, nameContext) {
@@ -44,8 +46,26 @@ router.get('/nameContext/:id', async (req, res, next) => {
     }
   });
 
+  router.get('/nameContext/:id/invites', checkNameContextOwner, async (req, res, next) => {
+    const { id } = req.params;
+
+    try {
+      const invites = await Invitation.find({ nameContextId: id });
+      const trimedInvites = invites.map((invite) => _.pick(invite, ['email', 'expiresAt']));
+      res.status(200).send(trimedInvites);
+    }
+    catch (err) {
+      next(err);
+    }
+  });
+
   router.get('/nameContexts', async (req, res, next) => {
-    const nameContexts = await NameContext.find({ owner: req.systemUser.id });
+    const nameContexts = await NameContext.find({
+      $or: [
+        { owner: req.systemUser.id }, // Check if the user is the owner
+        { participants: { $in: [req.systemUser.id] } } // Check if the user is in the participants array
+      ]
+    });
 
     try {
       nameContexts.forEach(nameContext => nameContext.setCurrentUserId(req.systemUser.id));
@@ -117,23 +137,35 @@ router.get('/nameContext/:id', async (req, res, next) => {
     try {
       const nameContext = req.nameContext;
 
+      // Validate email address
+      if (!validator.isEmail(email)) {
+        throw new BadRequestError('Invalid email address');
+      }
+
+      if (req.systemUser.email === email) {
+        throw new BadRequestError('Owner cannot be added as a participant');
+      }
+
       const userRecord = await Users.findOne({ email });
-      if (!userRecord) {
+      const existingInvite = await Invitation.findOne({ email, nameContextId: nameContext.id });
+
+      if (!userRecord && !existingInvite) {
         const invite = new Invitation({
           email,
           nameContextId: nameContext.id
         });
         await invite.save();
-        await sendEmail(email, 'Invitation to join Name Flame', 'You have been invited to join Name Flame', '<p>You have been invited to join Name Flame</p>');
+        await sendEmail(email, nameContext);
         logger.info(`Invitation sent to ${email} for name context ${nameContext.id}`);
-        return res.status(201).send({ message: 'Invitation sent' });
+        return res.status(201);
       }
 
-      nameContext.participants.push(userRecord.id);
-      await nameContext.save();
+      if (!existingInvite && userRecord && !nameContext.participants.includes(userRecord.id)) {
+        nameContext.participants.push(userRecord.id);
+        await nameContext.save();
+      }
 
-      const result = trimNameContext(req, nameContext);
-      res.status(200).send(result);
+      res.status(200);
     } catch (err) {
       logger.error('Error updating name context:', err.message);
       next(err);
@@ -159,7 +191,7 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
 
     // Exclude names that the user has already liked
     const likedNames = nameContext.likedNames || new Map();
-    const userLikedNames = likedNames.get(req.systemUser.id) || [];
+    const userLikedNames = likedNames[req.systemUser.id] || [];
     if (userLikedNames.length > 0) {
       mongoQuery.name = { ...mongoQuery.name, $nin: userLikedNames };
     }
@@ -217,21 +249,12 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
 
       const nameContext = await NameContext.findOne({ id });
 
-      // Ensure likedNames is initialized
-      if (!nameContext.likedNames) {
-        nameContext.likedNames = new Map();
-      }
-
-      // Add the name to the likedNames array with the user's ID as the key
-      if (!nameContext.likedNames.has(userSystemId)) {
-        nameContext.likedNames.set(userSystemId, []);
-      }
-
-      const userLikedNames = nameContext.likedNames.get(userSystemId);
+      const userLikedNames = nameContext.likedNames[userSystemId] || [];
 
       // Check if the name already exists in the array
       if (!userLikedNames.includes(name)) {
         userLikedNames.push(name);
+        nameContext.likedNames[userSystemId] = userLikedNames;
       }
 
       const errors = nameContext.validateSync();
@@ -257,16 +280,12 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
     try {
       const nameContext = await NameContext.findOne({ id });
 
-      // Ensure likedNames is initialized
-      if (!nameContext.likedNames) {
-        nameContext.likedNames = new Map();
-      }
-
       // Check if the user has liked names
-      if (nameContext.likedNames.has(userSystemId)) {
+      const userLikedNames = nameContext.likedNames[userSystemId] || [];
+      if (userLikedNames.length > 0) {
         // Remove the specified names from the user's liked names array
-        const updatedLikedNames = nameContext.likedNames.get(userSystemId).filter(name => !names.includes(name));
-        nameContext.likedNames.set(userSystemId, updatedLikedNames);
+        const updatedLikedNames = _.without(userLikedNames, ...names);
+        nameContext.likedNames[userSystemId] = updatedLikedNames;
       }
 
       const errors = nameContext.validateSync();

@@ -81,7 +81,12 @@ describe('NameContext Routes', () => {
         .get('/api/v1/nameContexts')
         .set('Authorization', 'Bearer validToken');
 
-      expect(NameContext.find).toHaveBeenCalledWith({ owner: 'userSystemId' });
+      expect(NameContext.find).toHaveBeenCalledWith({
+        $or: [
+          { owner: 'userSystemId' },
+          { participants: { $in: ['userSystemId'] } }
+        ]
+      });
       expect(nameContexts[0].setCurrentUserId).toHaveBeenCalledWith('userSystemId');
       expect(nameContexts[1].setCurrentUserId).toHaveBeenCalledWith('userSystemId');
       expect(res.status).toBe(200);
@@ -158,23 +163,22 @@ describe('NameContext Routes', () => {
         participants: [],
         validateSync: jest.fn().mockReturnValue(null),
         save: jest.fn().mockResolvedValue({}),
-        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: new Map() })
+        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: {} })
       };
       NameContext.findOne.mockResolvedValue(nameContext);
 
       const res = await request(app)
         .patch('/api/v1/nameContext/contextId')
-        .send({ name: 'new name', description: 'new description', filter: {}, participants: ['userId'] })
+        .send({ name: 'new name', description: 'new description', filter: {} })
         .set('Authorization', 'Bearer validToken');
 
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
       expect(nameContext.name).toBe('new name');
       expect(nameContext.description).toBe('new description');
       expect(nameContext.filter).toEqual({});
-      expect(nameContext.participants).toEqual(['userId']);
       expect(nameContext.save).toHaveBeenCalled();
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: 'contextId', likedNames: [] });
+      expect(res.body).toEqual({ id: 'contextId', likedNames: {} });
     });
 
     it('should return 400 if validation fails', async () => {
@@ -269,7 +273,7 @@ describe('NameContext Routes', () => {
         id: 'contextId',
         participants: ['userId'],
         owner: 'userSystemId',
-        likedNames: new Map([['userSystemId', ['name1', 'name2']]]),
+        likedNames: {'userSystemId': ['name1', 'name2']},
         validateSync: jest.fn().mockReturnValue(null),
         save: jest.fn().mockResolvedValue({}),
         toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: new Map([['userSystemId', ['name2']]]) })
@@ -282,7 +286,7 @@ describe('NameContext Routes', () => {
         .set('Authorization', 'Bearer validToken');
 
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-      expect(nameContext.likedNames.get('userSystemId')).toEqual(['name2']);
+      expect(nameContext.likedNames.userSystemId).toEqual(['name2']);
       expect(nameContext.save).toHaveBeenCalled();
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ id: 'contextId', likedNames: ['name2'] });

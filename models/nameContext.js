@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
+const _ = require('lodash');
 
 const NameFilterSchema = new mongoose.Schema({
     startsWithLetter: { type: String, maxLength: 1 },
@@ -14,7 +14,7 @@ const NameContextSchema = new mongoose.Schema({
     noun: { type: String },
     owner: { type: String, required: true },
     participants: [{ type: String }],
-    likedNames: { type: Schema.Types.Map, of: [String] },
+    likedNames: { type: Object, default: {} },
     filter: NameFilterSchema
   }, {
       collection: 'name-contexts',
@@ -31,16 +31,8 @@ NameContextSchema.virtual('isOwner').get(function() {
 
 // Virtual field for matches
 NameContextSchema.virtual('matches').get(function() {
-    if (!this.likedNames) return new Set();
-
-    const likedNamesArray = Array.from(this.likedNames.values());
-    if (likedNamesArray.length === 0) return new Set();
-
-    const intersection = likedNamesArray.reduce((acc, names) => {
-      if (acc === null) return new Set(names);
-      return new Set(names.filter(name => acc.has(name)));
-    }, null);
-
+    const likedNamesArrays = Object.values(this.likedNames);
+    const intersection = _.intersection(...likedNamesArrays);
     return intersection;
   });
 
