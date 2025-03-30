@@ -21,14 +21,6 @@ const NameContextSchema = new mongoose.Schema({
       timestamps: true
   });
 
-  // Virtual field for isOwner
-NameContextSchema.virtual('isOwner').get(function() {
-    if (!this.owner || !this._currentUserId) {
-      return false;
-    }
-    return this.owner.toString() === this._currentUserId.toString();
-  });
-
 // Virtual field for matches
 NameContextSchema.virtual('matches').get(function() {
     const likedNamesArrays = Object.values(this.likedNames);
@@ -39,10 +31,6 @@ NameContextSchema.virtual('matches').get(function() {
   // Ensure virtual fields are serialized
   NameContextSchema.set('toJSON', { virtuals: true });
   NameContextSchema.set('toObject', { virtuals: true });
-
-  NameContextSchema.methods.setCurrentUserId = function(userId) {
-    this._currentUserId = userId;
-  };
 
   const NameContext = mongoose.model('NameContext', NameContextSchema);
 

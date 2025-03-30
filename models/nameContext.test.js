@@ -34,12 +34,6 @@ describe('NameContext Model', () => {
     expect(intersection).toEqual(['Bob']);
   });
 
-  it('should set and get the current user ID', () => {
-    const nameContext = new NameContext();
-    nameContext.setCurrentUserId('userId');
-    expect(nameContext._currentUserId).toBe('userId');
-  });
-
   it('should include virtual fields in toJSON and toObject', () => {
     const nameContext = new NameContext({
       likedNames: {

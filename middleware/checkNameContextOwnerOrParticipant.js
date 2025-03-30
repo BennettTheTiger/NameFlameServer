@@ -19,11 +19,11 @@ const checkNameContextOwnerOrPartipant = async (req, res, next) => {
     }
 
     if (nameContext.owner.toString() === req.systemUser.id) {
-        return next();
+      return next();
     }
 
     if (nameContext.participants.includes(req.systemUser.id)) {
-        return next();
+      return next();
     }
 
     throw new ForbiddenError('User is not authorized for this name context');
