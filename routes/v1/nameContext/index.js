@@ -174,8 +174,8 @@ router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res
         throw new BadRequestError('Owner cannot be added as a participant');
       }
 
-      const userRecord = await Users.findOne({ email });
-      const existingInvite = await Invitation.findOne({ email, nameContextId: nameContext.id });
+      const userRecord = await Users.findOne({ email: { $eq: email } });
+      const existingInvite = await Invitation.findOne({ email: { $eq: email }, nameContextId: nameContext.id });
 
       if (!userRecord && !existingInvite) {
         const invite = new Invitation({
