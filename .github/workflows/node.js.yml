@@ -26,6 +26,12 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+    - name: Set environment variables
+      env:
+        DB_PASSWORD: mockPassword123
+        FIREBASE_PRIVATE_KEY: "mockFirebasePrivateKey"
+        SENDGRID_API_KEY: "mockSendGridApiKey"
+      run: echo "Environment variables set"
     - run: npm install
     - run: npm run lint
     - run: npm run test
