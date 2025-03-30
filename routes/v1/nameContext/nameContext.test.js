@@ -5,6 +5,8 @@ const NameContext = require('../../../models/nameContext');
 const Name = require('../../../models/name');
 const router = require('./index');
 const { errorHandler } = require('../../../middleware/errors');
+const Invitation = require('../../../models/invitations');
+const User = require('../../../models/user');
 
 const app = express();
 app.use(express.json());
@@ -21,7 +23,9 @@ app.use(errorHandler);
 
 jest.mock('../../../models/nameContext');
 jest.mock('../../../models/name');
+jest.mock('../../../models/user');
 jest.mock('../../../logger');
+jest.mock('../../../models/invitations');
 jest.mock('uuid', () => ({ v4: jest.fn() }));
 
 describe('NameContext Routes', () => {
@@ -33,8 +37,8 @@ describe('NameContext Routes', () => {
     it('should return 200 and the name context if found', async () => {
       const nameContext = {
         id: 'contextId',
-        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: new Map() }),
-        setCurrentUserId: jest.fn()
+        owner: 'userSystemId',
+        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: {}, participants: [], owner: 'userSystemId' }),
       };
       NameContext.findOne.mockResolvedValue(nameContext);
 
@@ -43,9 +47,8 @@ describe('NameContext Routes', () => {
         .set('Authorization', 'Bearer validToken');
 
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-      expect(nameContext.setCurrentUserId).toHaveBeenCalledWith('userSystemId');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: 'contextId', likedNames: [] });
+      expect(res.body).toEqual({ id: 'contextId', isOwner: true, likedNames: [], participants: [] });
     });
 
     it('should return 404 if name context is not found', async () => {
@@ -66,13 +69,11 @@ describe('NameContext Routes', () => {
       const nameContexts = [
         {
           id: 'contextId1',
-          toObject: jest.fn().mockReturnValue({ id: 'contextId1', likedNames: new Map() }),
-          setCurrentUserId: jest.fn()
+          toObject: jest.fn().mockReturnValue({ id: 'contextId1', likedNames: [] }),
         },
         {
           id: 'contextId2',
-          toObject: jest.fn().mockReturnValue({ id: 'contextId2', likedNames: new Map() }),
-          setCurrentUserId: jest.fn()
+          toObject: jest.fn().mockReturnValue({ id: 'contextId2', likedNames: [] }),
         }
       ];
       NameContext.find.mockResolvedValue(nameContexts);
@@ -81,13 +82,16 @@ describe('NameContext Routes', () => {
         .get('/api/v1/nameContexts')
         .set('Authorization', 'Bearer validToken');
 
-      expect(NameContext.find).toHaveBeenCalledWith({ owner: 'userSystemId' });
-      expect(nameContexts[0].setCurrentUserId).toHaveBeenCalledWith('userSystemId');
-      expect(nameContexts[1].setCurrentUserId).toHaveBeenCalledWith('userSystemId');
+      expect(NameContext.find).toHaveBeenCalledWith({
+        $or: [
+          { owner: 'userSystemId' },
+          { participants: { $in: ['userSystemId'] } }
+        ]
+      });
       expect(res.status).toBe(200);
       expect(res.body).toEqual([
-        { id: 'contextId1', likedNames: [] },
-        { id: 'contextId2', likedNames: [] }
+        { id: 'contextId1', isOwner: false, likedNames: [] },
+        { id: 'contextId2', isOwner: false, likedNames: [] }
       ]);
     });
   });
@@ -158,23 +162,22 @@ describe('NameContext Routes', () => {
         participants: [],
         validateSync: jest.fn().mockReturnValue(null),
         save: jest.fn().mockResolvedValue({}),
-        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: new Map() })
+        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: {} })
       };
       NameContext.findOne.mockResolvedValue(nameContext);
 
       const res = await request(app)
         .patch('/api/v1/nameContext/contextId')
-        .send({ name: 'new name', description: 'new description', filter: {}, participants: ['userId'] })
+        .send({ name: 'new name', description: 'new description', filter: {} })
         .set('Authorization', 'Bearer validToken');
 
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
       expect(nameContext.name).toBe('new name');
       expect(nameContext.description).toBe('new description');
       expect(nameContext.filter).toEqual({});
-      expect(nameContext.participants).toEqual(['userId']);
       expect(nameContext.save).toHaveBeenCalled();
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: 'contextId', likedNames: [] });
+      expect(res.body).toEqual({ id: 'contextId', likedNames: [], participants: [], isOwner: false });
     });
 
     it('should return 400 if validation fails', async () => {
@@ -202,12 +205,13 @@ describe('NameContext Routes', () => {
         id: 'contextId',
         participants: ['userId'],
         owner: 'userSystemId',
-        likedNames: new Map(),
+        likedNames: { 'userSystemId': [] },
         validateSync: jest.fn().mockReturnValue(null),
-        save: jest.fn().mockResolvedValue({}),
-        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: new Map([['userSystemId', ['name']]]) })
+        updateOne: jest.fn().mockResolvedValue({}),
+        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: { 'userSystemId': ['name'] } })
       };
       NameContext.findOne.mockResolvedValue(nameContext);
+      User.findOne.mockResolvedValue({ id: 'userId' });
 
       const res = await request(app)
         .patch('/api/v1/nameContext/contextId/match')
@@ -215,9 +219,9 @@ describe('NameContext Routes', () => {
         .set('Authorization', 'Bearer validToken');
 
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-      expect(nameContext.save).toHaveBeenCalled();
+      expect(nameContext.updateOne).toHaveBeenCalled();
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ id: 'contextId', likedNames: ['name'] });
+      expect(res.body).toEqual({ id: 'contextId', isOwner: false, likedNames: ['name'] });
     });
 
     it('should return 400 if name is not provided', async () => {
@@ -269,10 +273,10 @@ describe('NameContext Routes', () => {
         id: 'contextId',
         participants: ['userId'],
         owner: 'userSystemId',
-        likedNames: new Map([['userSystemId', ['name1', 'name2']]]),
+        likedNames: {'userSystemId': ['name1', 'name2']},
         validateSync: jest.fn().mockReturnValue(null),
-        save: jest.fn().mockResolvedValue({}),
-        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: new Map([['userSystemId', ['name2']]]) })
+        updateOne: jest.fn().mockResolvedValue({}),
+        toObject: jest.fn().mockReturnValue({ id: 'contextId', likedNames: {'userSystemId': ['name2'] } })
       };
       NameContext.findOne.mockResolvedValue(nameContext);
 
@@ -281,11 +285,10 @@ describe('NameContext Routes', () => {
         .send({ names: ['name1'] })
         .set('Authorization', 'Bearer validToken');
 
-      expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-      expect(nameContext.likedNames.get('userSystemId')).toEqual(['name2']);
-      expect(nameContext.save).toHaveBeenCalled();
+      expect(nameContext.likedNames.userSystemId).toEqual(['name2']);
+      expect(nameContext.updateOne).toHaveBeenCalledWith({ likedNames: { userSystemId: ['name2'] } });
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ id: 'contextId', likedNames: ['name2'] });
+      expect(res.body).toEqual({ id: 'contextId', isOwner: false, likedNames: ['name2'] });
     });
 
     it('should return 404 if name context is not found', async () => {
@@ -324,6 +327,7 @@ describe('NameContext Routes', () => {
     it('should return 204 and delete the name context', async () => {
       NameContext.findOne.mockResolvedValue({owner: 'userSystemId'});
       NameContext.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      Invitation.deleteMany.mockResolvedValue({ deletedCount: 0 });
 
       const res = await request(app)
         .delete('/api/v1/nameContext/contextId')

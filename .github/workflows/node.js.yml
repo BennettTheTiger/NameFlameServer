@@ -26,7 +26,14 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-    - run: npm install
-    - run: npm run lint
-    - run: npm run test
+
+    - name: Run commands with environment variables
+      env:
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      run: |
+        npm install
+        npm run lint
+        npm run test
 

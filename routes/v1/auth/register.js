@@ -4,6 +4,9 @@ const User = require('../../../models/user');
 const { BadRequestError, InternalServerError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
 const { v4: uuidv4 } = require('uuid');
+const Invitation = require('../../../models/invitations');
+const NameContext = require('../../../models/nameContext');
+const escape = require('escape-html');
 
 const router = express.Router();
 
@@ -15,9 +18,9 @@ router.post('/register', async (req, res, next) => {
     try {
       // Check if the user already exists in Firebase Authentication
       firebaseUser = await admin.auth().getUserByEmail(email);
-      logger.info(`User with email ${email} already exists in Firebase`);
+      logger.info(`User with email ${escape(email)} already exists in Firebase`);
     } catch {
-      logger.info(`User with email ${email} does not exist in Firebase`);
+      logger.info(`User with email ${escape(email)} does not exist in Firebase`);
       // Create a new user in Firebase Authentication
       firebaseUser = await admin.auth().createUser({
         displayName: userName,
@@ -29,7 +32,7 @@ router.post('/register', async (req, res, next) => {
     if (!firebaseUser) {
       throw new InternalServerError('Failed to retrieve or create user');
     }
-    logger.info(`Email ${email} created in Firebase with UID: ${firebaseUser.uid}`);
+    logger.info(`Email ${escape(email)} created in Firebase with UID: ${firebaseUser.uid}`);
 
     const existingUser = await User.findOne({ firebaseUid: { $eq: firebaseUser.uid } });
     if (existingUser) {
@@ -52,7 +55,25 @@ router.post('/register', async (req, res, next) => {
 
     // Save the new user in MongoDB
     await newUser.save();
-    logger.info(`User ${email} created in MongoDB with ID: ${newUser.id}`);
+    logger.info(`User ${escape(email)} created in MongoDB with ID: ${newUser.id}`);
+
+    // check if the user has invites to name contexts
+    const invites = await Invitation.find({ email: { $eq: email } });
+    if (invites.length > 0) {
+      logger.info(`User ${escape(email)} has ${invites.length} invites to name contexts`);
+      // Add the user to the name contexts
+      for (const invite of invites) {
+        const nameContext = await NameContext.findOne({ id: { $eq: invite.nameContextId } });
+        if (nameContext) {
+          nameContext.participants.push(newUser.id);
+          await nameContext.save();
+          logger.info(`User ${escape(email)} added to name context ${nameContext.name}`);
+        }
+      }
+      // Delete the invites
+      await Invitation.deleteMany({ email: { $eq: email } });
+      logger.info(`Invites for ${escape(email)} deleted`);
+    }
 
     res.status(200).send('User registered successfully');
   } catch (err) {

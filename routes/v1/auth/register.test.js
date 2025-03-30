@@ -5,6 +5,7 @@ const User = require('../../../models/user');
 const { v4: uuidv4 } = require('uuid');
 const router = require('./register');
 const { errorHandler } = require('../../../middleware/errors');
+const Invitation = require('../../../models/invitations');
 
 const app = express();
 app.use(express.json());
@@ -12,6 +13,7 @@ app.use('/api/v1/auth', router);
 app.use(errorHandler);
 
 jest.mock('../../../models/user');
+jest.mock('../../../models/invitations');
 jest.mock('../../../firebase', () => ({
   auth: jest.fn().mockReturnThis(),
   getUserByEmail: jest.fn(),
@@ -29,6 +31,7 @@ describe('POST /api/v1/auth/register', () => {
     admin.auth().getUserByEmail.mockRejectedValue(new Error('User not found'));
     admin.auth().createUser.mockResolvedValue({ uid: 'firebaseUid' });
     User.findOne.mockResolvedValue(null);
+    Invitation.find.mockResolvedValue([]);
     uuidv4.mockReturnValue('unique-id');
     User.prototype.validateSync = jest.fn().mockReturnValue(null);
     User.prototype.save = jest.fn().mockResolvedValue({});
@@ -52,6 +55,7 @@ describe('POST /api/v1/auth/register', () => {
   it('should return 200 and create MongoDB user if user already exists in Firebase but not MongoDB', async () => {
     admin.auth().getUserByEmail.mockResolvedValue({ uid: 'firebaseUid' });
     User.findOne.mockResolvedValue(null);
+    Invitation.find.mockResolvedValue([]);
     uuidv4.mockReturnValue('unique-id');
     User.prototype.validateSync = jest.fn().mockReturnValue(null);
     User.prototype.save = jest.fn().mockResolvedValue({});
