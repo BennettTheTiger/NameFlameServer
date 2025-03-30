@@ -1,4 +1,5 @@
 const express = require('express');
+const escape = require('escape-html');
 const validator = require('validator');
 const _ = require('lodash');
 const router = express.Router();
@@ -187,19 +188,19 @@ router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res
         });
         await invite.save();
         await sendEmail(email, nameContext);
-        logger.info(`Invitation sent to ${email} for name context ${nameContext.id}`);
+        logger.info(`Invitation sent to ${escape(email)} for name context ${nameContext.id}`);
         return res.status(201).send({ type: 'invite', message: 'Invitation sent' });
       }
 
       if (!existingInvite && userRecord && !nameContext.participants.includes(userRecord.id)) {
         nameContext.participants.push(userRecord.id);
         await nameContext.save();
-        logger.info(`User ${email} added to name context ${nameContext.id}`);
+        logger.info(`User ${escape(email)} added to name context ${nameContext.id}`);
         return res.status(201).send({ type: 'user', message: 'User added' });
       }
 
-      logger.info(`User ${email} can contribute to ${nameContext.id}`);
-      res.status(200).send(`User ${email} can contribute to ${nameContext.id}`);
+      logger.info(`User ${escape(email)} can contribute to ${nameContext.id}`);
+      res.status(200).send(`User ${escape(email)} can contribute to ${nameContext.id}`);
     } catch (err) {
       logger.error('Error updating name context:', err.message);
       next(err);
