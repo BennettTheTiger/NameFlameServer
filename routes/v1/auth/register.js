@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const Invitation = require('../../../models/invitations');
 const NameContext = require('../../../models/nameContext');
 const escape = require('escape-html');
+const sendUpdateNameContextEvent = require('../../../events/updateNameContext');
 
 const router = express.Router();
 
@@ -67,6 +68,7 @@ router.post('/register', async (req, res, next) => {
         if (nameContext) {
           nameContext.participants.push(newUser.id);
           await nameContext.save();
+          sendUpdateNameContextEvent(req, nameContext);
           logger.info(`User ${escape(email)} added to name context ${nameContext.name}`);
         }
       }

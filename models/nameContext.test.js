@@ -16,37 +16,65 @@ afterAll(async () => {
 });
 
 describe('NameContext Model', () => {
-  it('should return an empty set if likedNames is not initialized', () => {
-    const nameContext = new NameContext();
-    expect(nameContext.matches).toEqual([]);
+  afterEach(async () => {
+    // Clear the database after each test
+    await NameContext.deleteMany({});
   });
 
-  it('should return the intersection (matches) of liked names', () => {
-    const nameContext = new NameContext({
-      likedNames: {
-        'user1': ['Alice', 'Bob'],
-        'user2': ['Bob', 'Charlie'],
-        'user3': ['Bob', 'David']
-      }
-    });
+  it('should create a NameContext successfully', async () => {
+    const nameContextData = {
+      name: 'Test Context',
+      id: 'test-id',
+      description: 'A test name context',
+      noun: 'test-noun',
+      owner: 'owner-id',
+      participants: ['participant1', 'participant2'],
+      likedNames: { participant1: ['name1'], participant2: ['name2'] },
+    };
 
-    const intersection = nameContext.matches;
-    expect(intersection).toEqual(['Bob']);
+    const nameContext = await NameContext.create(nameContextData);
+
+    expect(nameContext.name).toBe(nameContextData.name);
+    expect(nameContext.id).toBe(nameContextData.id);
+    expect(nameContext.description).toBe(nameContextData.description);
+    expect(nameContext.noun).toBe(nameContextData.noun);
+    expect(nameContext.owner).toBe(nameContextData.owner);
+    expect(nameContext.participants).toEqual(expect.arrayContaining(nameContextData.participants));
+    expect(nameContext.likedNames).toEqual(nameContextData.likedNames);
   });
 
-  it('should include virtual fields in toJSON and toObject', () => {
-    const nameContext = new NameContext({
-      likedNames: {
-        'user1': ['Alice', 'Bob'],
-        'user2': ['Bob', 'Charlie'],
-        'user3': ['Bob', 'David']
-      }
+  it('should fail to create a NameContext without required fields', async () => {
+    const invalidData = {
+      id: 'test-id',
+    };
+
+    await expect(NameContext.create(invalidData)).rejects.toThrow(mongoose.Error.ValidationError);
+  });
+
+  it('should update a NameContext successfully', async () => {
+    const nameContext = await NameContext.create({
+      name: 'Initial Name',
+      id: 'test-id',
+      owner: 'owner-id',
     });
 
-    const json = nameContext.toJSON();
-    const obj = nameContext.toObject();
+    nameContext.name = 'Updated Name';
+    await nameContext.save();
 
-    expect(json.matches).toEqual(['Bob']);
-    expect(obj.matches).toEqual(['Bob']);
+    const updatedNameContext = await NameContext.findOne({ id: 'test-id' });
+    expect(updatedNameContext.name).toBe('Updated Name');
+  });
+
+  it('should delete a NameContext successfully', async () => {
+    await NameContext.create({
+      name: 'To Be Deleted',
+      id: 'delete-id',
+      owner: 'owner-id',
+    });
+
+    await NameContext.deleteOne({ id: 'delete-id' });
+
+    const deletedNameContext = await NameContext.findOne({ id: 'delete-id' });
+    expect(deletedNameContext).toBeNull();
   });
 });

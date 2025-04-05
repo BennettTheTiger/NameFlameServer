@@ -1,30 +1,34 @@
-const express = require('express');
+const { io, app, server } = require('./server');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const { Server } = require('socket.io');
-const http = require('http');
 const rateLimit = require('express-rate-limit');
 const logger = require('./logger');
 
 require('dotenv').config();
 
 const authMiddleware = require('./middleware/auth');
-const { login, register } = require('./routes/v1/auth');
+const { login, register, systemUser } = require('./routes/v1/auth');
 const nameContextRouter = require('./routes/v1/nameContext');
 const nameRouter = require('./routes/v1/names');
 const { errorHandler } = require('./middleware/errors');
 const addSystemUser = require('./middleware/addSystemUser');
 const userRouter = require('./routes/v1/user');
 
-// Initialize Server
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*', // Allow cross-origin requests
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  },
+// Handle socket connections
+io.on('connection', (socket) => {
+  logger.info('A user connected:', socket.id);
+
+  // Join the user to a room for a specific NameContext
+  socket.on('joinNameContext', (nameContextId) => {
+    socket.join(`nameContext:${nameContextId}`);
+    logger.info(`User ${socket.id} joined room nameContext:${nameContextId}`);
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    logger.info('A user disconnected:', socket.id);
+  });
 });
 
 // Rate limiter configurations
@@ -57,25 +61,11 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.use('/api/v1/auth', loginLimiter, login);
 app.use('/api/v1/auth', registerLimiter, register);
+app.use('/api/v1/auth', defaultLimiter, authMiddleware, systemUser);
 // protected routes
 app.use('/api/v1', defaultLimiter, authMiddleware, nameRouter);
 app.use('/api/v1', defaultLimiter, authMiddleware, addSystemUser, nameContextRouter);
 app.use('/api/v1', defaultLimiter, authMiddleware, addSystemUser, userRouter);
-
-// Real-time collaboration with Socket.io
-io.on('connection', (socket) => {
-  logger.info('User connected:', socket.id);
-
-  // Handle collaboration events (e.g., shared profile updates)
-  socket.on('collaborate', (data) => {
-    logger.info('Collaboration data received:', data);
-    io.emit('collaborationUpdate', data); // Broadcast to all clients
-  });
-
-  socket.on('disconnect', () => {
-    logger.info('User disconnected:', socket.id);
-  });
-});
 
 app.get('/', async (req, res) => {
   res.status(200).send('Hello');
@@ -89,3 +79,5 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+
+module.exports = { app, server, io };

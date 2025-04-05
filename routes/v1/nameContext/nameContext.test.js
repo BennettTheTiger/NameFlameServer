@@ -48,7 +48,7 @@ describe('NameContext Routes', () => {
 
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: 'contextId', isOwner: true, likedNames: [], participants: [] });
+      expect(res.body).toEqual({ id: 'contextId', likedNames: [], participants: [], matches: [], owner: 'userSystemId' });
     });
 
     it('should return 404 if name context is not found', async () => {
@@ -90,8 +90,8 @@ describe('NameContext Routes', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body).toEqual([
-        { id: 'contextId1', isOwner: false, likedNames: [] },
-        { id: 'contextId2', isOwner: false, likedNames: [] }
+        { id: 'contextId1', likedNames: [], matches: [] },
+        { id: 'contextId2', likedNames: [], matches: [] }
       ]);
     });
   });
@@ -177,7 +177,7 @@ describe('NameContext Routes', () => {
       expect(nameContext.filter).toEqual({});
       expect(nameContext.save).toHaveBeenCalled();
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: 'contextId', likedNames: [], participants: [], isOwner: false });
+      expect(res.body).toEqual({});
     });
 
     it('should return 400 if validation fails', async () => {
@@ -221,7 +221,7 @@ describe('NameContext Routes', () => {
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
       expect(nameContext.updateOne).toHaveBeenCalled();
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ id: 'contextId', isOwner: false, likedNames: ['name'] });
+      expect(res.body).toEqual({});
     });
 
     it('should return 400 if name is not provided', async () => {
@@ -288,7 +288,13 @@ describe('NameContext Routes', () => {
       expect(nameContext.likedNames.userSystemId).toEqual(['name2']);
       expect(nameContext.updateOne).toHaveBeenCalledWith({ likedNames: { userSystemId: ['name2'] } });
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ id: 'contextId', isOwner: false, likedNames: ['name2'] });
+      expect(res.body).toEqual({
+        id: 'contextId',
+        likedNames: ['name2'],
+        matches: ['name2'],
+        owner: 'userSystemId',
+        participants: [{ id: 'userId' }]
+      });
     });
 
     it('should return 404 if name context is not found', async () => {
