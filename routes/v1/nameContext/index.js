@@ -3,12 +3,10 @@ const escape = require('escape-html');
 const validator = require('validator');
 const _ = require('lodash');
 const router = express.Router();
-const processNameResult = require('../names/utils');
 const { v4: uuidv4 } = require('uuid');
 const NameContext = require('../../../models/nameContext');
 const Invitation = require('../../../models/invitations');
 const Users = require('../../../models/user');
-const Name = require('../../../models/name');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
@@ -19,7 +17,7 @@ const augmentNameContext = require('../../../utils/augmentNameContext');
 const augmentParticipants = require('../../../utils/augmentParticipants');
 const calculateMatches = require('../../../utils/calculateMatches');
 const sendNewMatchEvent = require('../../../events/newMatch');
-
+const matchBatch = require('../../../match/matchBatch');
 
 router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res, next) => {
     try {
@@ -204,65 +202,8 @@ router.delete('/nameContext/:id/participant/:participantId', checkNameContextOwn
 });
 
 router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async (req, res, next) => {
-  const { limit = 10 } = req.query;
-  const { nameContext } = req;
-
   try {
-     // Parse the filter from nameContext
-     const filter = nameContext.filter || {};
-
-     // Build the MongoDB query based on the filter
-     const mongoQuery = {};
-     if (filter.startsWithLetter) {
-       mongoQuery.name = { $regex: `^${filter.startsWithLetter}`, $options: 'i' };
-     }
-     if (filter.maxCharacters) {
-       mongoQuery.$expr = { $lte: [{ $strLenCP: "$name" }, filter.maxCharacters] };
-     }
-
-    // Exclude names that the user has already liked
-    const likedNames = nameContext.likedNames || new Map();
-    const userLikedNames = likedNames[req.systemUser.id] || [];
-    if (userLikedNames.length > 0) {
-      mongoQuery.name = { ...mongoQuery.name, $nin: userLikedNames };
-    }
-
-    const sizeLimit = Math.min(parseInt(limit || 0, 10), 50);
-
-    // Use MongoDB aggregation to apply the filter and sample the results
-    const namesResults = await Name.aggregate([
-      { $match: mongoQuery },
-      { $sample: { size: sizeLimit } } // Randomly sample the results
-    ]);
-
-    let names = namesResults.map(processNameResult);
-
-    // Filter out names that don't match the specified gender
-    if (filter.gender && filter.gender !== 'neutral') {
-      names = names.filter(name => name.gender === filter.gender);
-    }
-
-    // If there are not enough names, get more names
-    while (names.length < sizeLimit) {
-      const additionalNamesResult = await Name.aggregate([
-        { $match: mongoQuery },
-        { $sample: { size: sizeLimit - names.length } } // Randomly sample the remaining results
-      ]).then(results => results.map(processNameResult));
-
-      let additionalNames = additionalNamesResult.filter(name => !names.some(n => n.name === name.name));
-
-      if (filter.gender && filter.gender !== 'neutral') {
-        additionalNames = additionalNames.filter(name => name.gender === filter.gender);
-      }
-
-      names.push(...additionalNames);
-
-      if (additionalNames.length === 0) {
-        logger.info('No more names to fetch with filter', JSON.stringify(filter));
-        break; // No more names to fetch didnt get enough names to meet the target sizeLimit
-      }
-    }
-    // Return the filtered names
+    const names = await matchBatch(req);
     res.status(200).send(names);
   } catch (err) {
     logger.error('Error fetching next set of names:', err.message);
