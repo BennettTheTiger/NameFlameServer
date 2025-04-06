@@ -3,57 +3,26 @@ const escape = require('escape-html');
 const validator = require('validator');
 const _ = require('lodash');
 const router = express.Router();
-const processNameResult = require('../names/utils');
 const { v4: uuidv4 } = require('uuid');
 const NameContext = require('../../../models/nameContext');
 const Invitation = require('../../../models/invitations');
 const Users = require('../../../models/user');
-const Name = require('../../../models/name');
 const checkNameContextOwner = require('../../../middleware/checkNameContextOwner');
 const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const logger = require('../../../logger');
 const sendEmail = require('../../../mailer/sendgrid');
-const admin = require('../../../firebase');
 const checkNameContextOwnerOrPartipant = require('../../../middleware/checkNameContextOwnerOrParticipant');
-
-async function augmentParticipants(nameContext) {
-  const participants = nameContext.participants || [];
-
-  // Map participants to promises and resolve them
-  const augmentedParticipants = await Promise.all(
-    participants.map(async (participantId) => {
-      const systemUser = await Users.findOne({ id: participantId });
-      if (systemUser?.firebaseUid) {
-        const firebaseUser = await admin.auth().getUser(systemUser.firebaseUid);
-        return {
-          id: participantId,
-          name: firebaseUser.displayName,
-          email: firebaseUser.email || systemUser.email,
-        };
-      }
-      return { id: participantId };
-    })
-  );
-
-  nameContext.participants = augmentedParticipants;
-  return nameContext;
-}
-
-function trimNameContext(req, nameContext) {
-  const userId = req.systemUser.id;
-  const result = nameContext.toObject();
-  result.likedNames = result.likedNames?.[userId] || [];
-  result.isOwner = result.owner === req.systemUser.id;
-  delete result._id;
-  delete result.owner;
-  delete result.__v;
-  return result;
-}
+const sendUpdateNameContextEvent = require('../../../events/updateNameContext');
+const augmentNameContext = require('../../../utils/augmentNameContext');
+const augmentParticipants = require('../../../utils/augmentParticipants');
+const calculateMatches = require('../../../utils/calculateMatches');
+const sendNewMatchEvent = require('../../../events/newMatch');
+const matchBatch = require('../../../match/matchBatch');
 
 router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res, next) => {
     try {
       const { nameContext } = req;
-      const nameContextResult = trimNameContext(req, nameContext);
+      const nameContextResult = augmentNameContext(req, nameContext);
       const augmentedNameContext = await augmentParticipants(nameContextResult);
       res.status(200).send(augmentedNameContext);
     }
@@ -97,7 +66,7 @@ router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res
     });
 
     try {
-      const result = nameContexts.map((item) => trimNameContext(req, item));
+      const result = nameContexts.map((item) => augmentNameContext(req, item));
       res.status(200).send(result);
     }
     catch (err) {
@@ -127,6 +96,7 @@ router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res
       }
 
       await newNameContext.save();
+      sendUpdateNameContextEvent(req, newNameContext);
       res.status(201).send('Name context added');
     } catch (err) {
       logger.error('Error adding name context:', err.message);
@@ -151,9 +121,9 @@ router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res
       }
 
       await nameContext.save();
-      const result = trimNameContext(req, nameContext);
-      const augmentedNameContext = await augmentParticipants(result);
-      res.status(200).send(augmentedNameContext);
+      sendUpdateNameContextEvent(req, nameContext);
+      logger.info(`Name context ${nameContext.id} updated`);
+      res.status(200).send();
     } catch (err) {
       logger.error('Error updating name context:', err.message);
       next(err);
@@ -195,6 +165,7 @@ router.get('/nameContext/:id', checkNameContextOwnerOrPartipant, async (req, res
       if (!existingInvite && userRecord && !nameContext.participants.includes(userRecord.id)) {
         nameContext.participants.push(userRecord.id);
         await nameContext.save();
+        sendUpdateNameContextEvent(req, nameContext);
         logger.info(`User ${escape(email)} added to name context ${nameContext.id}`);
         return res.status(201).send({ type: 'user', message: 'User added' });
       }
@@ -220,9 +191,10 @@ router.delete('/nameContext/:id/participant/:participantId', checkNameContextOwn
     nameContext.participants = _.without(nameContext.participants, participantId);
     nameContext.likedNames = _.omit(nameContext.likedNames, [participantId]);
     await nameContext.save();
+    sendUpdateNameContextEvent(req, nameContext);
 
     logger.info(`Participant ${participantId} removed from name context ${id}`);
-    res.status(204).send({ message: `Participant ${participantId} removed from name context ${id}` });
+    res.status(204).send();
   } catch (err) {
     logger.error('Error removing participant from name context:', err.message);
     next(err);
@@ -230,65 +202,8 @@ router.delete('/nameContext/:id/participant/:participantId', checkNameContextOwn
 });
 
 router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async (req, res, next) => {
-  const { limit = 10 } = req.query;
-  const { nameContext } = req;
-
   try {
-     // Parse the filter from nameContext
-     const filter = nameContext.filter || {};
-
-     // Build the MongoDB query based on the filter
-     const mongoQuery = {};
-     if (filter.startsWithLetter) {
-       mongoQuery.name = { $regex: `^${filter.startsWithLetter}`, $options: 'i' };
-     }
-     if (filter.maxCharacters) {
-       mongoQuery.$expr = { $lte: [{ $strLenCP: "$name" }, filter.maxCharacters] };
-     }
-
-    // Exclude names that the user has already liked
-    const likedNames = nameContext.likedNames || new Map();
-    const userLikedNames = likedNames[req.systemUser.id] || [];
-    if (userLikedNames.length > 0) {
-      mongoQuery.name = { ...mongoQuery.name, $nin: userLikedNames };
-    }
-
-    const sizeLimit = Math.min(parseInt(limit || 0, 10), 50);
-
-    // Use MongoDB aggregation to apply the filter and sample the results
-    const namesResults = await Name.aggregate([
-      { $match: mongoQuery },
-      { $sample: { size: sizeLimit } } // Randomly sample the results
-    ]);
-
-    let names = namesResults.map(processNameResult);
-
-    // Filter out names that don't match the specified gender
-    if (filter.gender && filter.gender !== 'neutral') {
-      names = names.filter(name => name.gender === filter.gender);
-    }
-
-    // If there are not enough names, get more names
-    while (names.length < sizeLimit) {
-      const additionalNamesResult = await Name.aggregate([
-        { $match: mongoQuery },
-        { $sample: { size: sizeLimit - names.length } } // Randomly sample the remaining results
-      ]).then(results => results.map(processNameResult));
-
-      let additionalNames = additionalNamesResult.filter(name => !names.some(n => n.name === name.name));
-
-      if (filter.gender && filter.gender !== 'neutral') {
-        additionalNames = additionalNames.filter(name => name.gender === filter.gender);
-      }
-
-      names.push(...additionalNames);
-
-      if (additionalNames.length === 0) {
-        logger.info('No more names to fetch with filter', JSON.stringify(filter));
-        break; // No more names to fetch didnt get enough names to meet the target sizeLimit
-      }
-    }
-    // Return the filtered names
+    const names = await matchBatch(req);
     res.status(200).send(names);
   } catch (err) {
     logger.error('Error fetching next set of names:', err.message);
@@ -306,6 +221,7 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
       if (!name) throw new BadRequestError('Name is required');
 
       const userLikedNames = nameContext.likedNames[userSystemId] || [];
+      const oldMatches = calculateMatches(nameContext);
 
       // Check if the name already exists in the array
       if (!userLikedNames.includes(name)) {
@@ -320,9 +236,16 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
       }
 
       await nameContext.updateOne({ likedNames: nameContext.likedNames });
+      sendUpdateNameContextEvent(req, nameContext);
       logger.info(`Match ${name} added to name context ${id}`);
-      const augmentedNameContext = await augmentParticipants(nameContext);
-      res.status(201).send(trimNameContext(req, augmentedNameContext));
+
+      const newMatches = calculateMatches(nameContext);
+      if (oldMatches.length < newMatches.length) {
+        logger.info(`sending match event to ${id} for ${name}`);
+        sendNewMatchEvent(req, nameContext, name);
+      }
+
+      res.status(201).send();
     } catch (err) {
       logger.error('Error adding match to name context:', err.message);
       next(err);
@@ -353,7 +276,7 @@ router.get('/nameContext/:id/nextNames', checkNameContextOwnerOrPartipant, async
       await nameContext.updateOne({ likedNames: nameContext.likedNames });
       logger.info(`${names} removed from name context ${id}`);
       const augmentedNameContext = await augmentParticipants(nameContext);
-      res.status(201).send(trimNameContext(req, augmentedNameContext));
+      res.status(201).send(augmentNameContext(req, augmentedNameContext));
     } catch (err) {
       logger.error('Error adding match to name context:', err.message);
       next(err);

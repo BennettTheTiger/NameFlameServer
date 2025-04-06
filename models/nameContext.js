@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const _ = require('lodash');
 
 const NameFilterSchema = new mongoose.Schema({
     startsWithLetter: { type: String, maxLength: 1 },
@@ -21,17 +20,10 @@ const NameContextSchema = new mongoose.Schema({
       timestamps: true
   });
 
-// Virtual field for matches
-NameContextSchema.virtual('matches').get(function() {
-    const likedNamesArrays = Object.values(this.likedNames);
-    const intersection = _.intersection(...likedNamesArrays);
-    return intersection;
-  });
+// Ensure virtual fields are serialized
+NameContextSchema.set('toJSON');
+NameContextSchema.set('toObject');
 
-  // Ensure virtual fields are serialized
-  NameContextSchema.set('toJSON', { virtuals: true });
-  NameContextSchema.set('toObject', { virtuals: true });
+const NameContext = mongoose.model('NameContext', NameContextSchema);
 
-  const NameContext = mongoose.model('NameContext', NameContextSchema);
-
-  module.exports = NameContext;
+module.exports = NameContext;
