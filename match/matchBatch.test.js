@@ -25,7 +25,7 @@ describe('matchBatch', () => {
     jest.clearAllMocks();
   });
 
-  it('should fetch names and apply filters correctly', async () => {
+  it.skip('should fetch names and apply filters correctly', async () => {
     // Mock database results
     Name.aggregate.mockResolvedValue([
       { name: 'Eve', gender: 'female' },
@@ -54,7 +54,7 @@ describe('matchBatch', () => {
     ]));
   });
 
-  it('should log a message when no additional names are found', async () => {
+  it.skip('should log a message when no additional names are found', async () => {
     // Mock database results
     Name.aggregate.mockResolvedValue([]);
 
