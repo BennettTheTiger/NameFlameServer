@@ -3,6 +3,7 @@ const User = require('../../../models/user');
 const logger = require('../../../logger');
 const authMiddleware = require('../../../middleware/auth');
 const _ = require('lodash');
+const { NotFoundError } = require('../../../middleware/errors');
 
 const router = express.Router();
 
@@ -29,6 +30,10 @@ router.patch('/systemUser', authMiddleware, async (req, res, next) => {
       dataToUpdate,
       { new: true }
     );
+    if (!systemUser) {
+      logger.error(`System user ${req.userData.uid} not found`);
+      throw new NotFoundError('System user not found');
+    }
     logger.info(`System user ${systemUser.id} updated`);
     const userData = trimResponse(systemUser);
     res.status(200).send(userData);
