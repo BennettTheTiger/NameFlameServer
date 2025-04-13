@@ -3,7 +3,7 @@ const User = require('../../../models/user');
 const logger = require('../../../logger');
 const authMiddleware = require('../../../middleware/auth');
 const _ = require('lodash');
-const { NotFoundError } = require('../../../middleware/errors');
+const { NotFoundError, BadRequestError } = require('../../../middleware/errors');
 const Joi = require('joi');
 
 const router = express.Router();
@@ -26,17 +26,17 @@ router.get('/systemUser', authMiddleware, async (req, res, next) => {
 router.patch('/systemUser', authMiddleware, async (req, res, next) => {
   try {
     const dataToUpdate = _.pick(req.body, ['theme', 'allowNotifications']);
-    
+
     const schema = Joi.object({
       theme: Joi.string().valid('light', 'dark').optional(),
       allowNotifications: Joi.boolean().optional()
     });
-    
+
     const { error } = schema.validate(dataToUpdate);
     if (error) {
-      return res.status(400).send({ error: error.details[0].message });
+      throw new BadRequestError(error.details[0].message);
     }
-    
+
     const systemUser = await User.findOneAndUpdate(
       { firebaseUid: req.userData.uid },
       dataToUpdate,
