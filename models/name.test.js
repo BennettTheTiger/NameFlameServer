@@ -60,7 +60,7 @@ describe('Name Model', () => {
     expect(foundName.popularity.get('2022').females).toBe(350);
   });
 
-  it('should calculate the gender virtual field', async () => {
+  it('should calculate the gender virtual field as "male"', async () => {
     const nameData = {
       name: 'Name',
       origin: 'Something',
@@ -76,5 +76,92 @@ describe('Name Model', () => {
     const foundName = await Name.findOne({ name: 'Name' });
     const gender = foundName.gender;
     expect(gender).toBe('male');
+  });
+
+  it('should calculate the gender virtual field as "female"', async () => {
+    const nameData = {
+      name: 'Name1',
+      origin: 'Something',
+      meaning: 'Anything',
+      popularity: {
+        '2021': { males: 300, females: 500 },
+        '2022': { males: 350, females: 450 }
+      }
+    };
+    const name = new Name(nameData);
+    await name.save();
+
+    const foundName = await Name.findOne({ name: 'Name1' });
+    const gender = foundName.gender;
+    expect(gender).toBe('female');
+  });
+
+  it('should calculate the gender virtual field as "neutral"', async () => {
+    const nameData = {
+      name: 'Name2',
+      origin: 'Something',
+      meaning: 'Anything',
+      popularity: {
+        '2021': { males: 400, females: 400 },
+        '2022': { males: 450, females: 450 }
+      }
+    };
+    const name = new Name(nameData);
+    await name.save();
+
+    const foundName = await Name.findOne({ name: 'Name2' });
+    const gender = foundName.gender;
+    expect(gender).toBe('neutral');
+  });
+
+  it('should handle missing popularity data gracefully', async () => {
+    const nameData = {
+      name: 'Name3',
+      origin: 'Something',
+      meaning: 'Anything'
+    };
+    const name = new Name(nameData);
+    await name.save();
+
+    const foundName = await Name.findOne({ name: 'Name3' });
+    expect(foundName.popularity).toBeUndefined();
+  });
+
+  it('should handle empty popularity data gracefully', async () => {
+    const nameData = {
+      name: 'Name4',
+      origin: 'Something',
+      meaning: 'Anything',
+      popularity: {}
+    };
+    const name = new Name(nameData);
+    await name.save();
+
+    const foundName = await Name.findOne({ name: 'Name4' });
+    expect(foundName.popularity.size).toBe(0);
+  });
+
+  it('should update a name successfully', async () => {
+    const nameData = { name: 'Name5', origin: 'Something', meaning: 'Anything' };
+    const name = new Name(nameData);
+    await name.save();
+
+    const updatedData = { origin: 'Updated Origin', meaning: 'Updated Meaning' };
+    await Name.updateOne({ name: 'Name5' }, updatedData);
+
+    const updatedName = await Name.findOne({ name: 'Name5' });
+    expect(updatedName.origin).toBe('Updated Origin');
+    expect(updatedName.meaning).toBe('Updated Meaning');
+  });
+
+  it('should delete a name successfully', async () => {
+    const nameData = { name: 'Name6', origin: 'Something', meaning: 'Anything' };
+    const name = new Name(nameData);
+    await name.save();
+
+    await Name.deleteOne({ name: 'Name' });
+
+    const deletedName = await Name.findOne({ name: 'Name' });
+    expect(deletedName).toBeNull();
   });
 });

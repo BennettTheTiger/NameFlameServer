@@ -11,12 +11,14 @@ async function sendInviteEmail(email, nameContext) {
     html: `You have been invited to join the ${nameContext.name} Name Context
     visit <a href="https://name-flame.expo.app/sign-up">Name Flame</a> to sign up and contribute!`,
   }
-  sgMail.send(msg).then(() => {
+
+  try {
+    await sgMail.send(msg)
     logger.info(`Invite email sent to ${email}`)
-  })
-  .catch((error) => {
+  }
+  catch (error) {
     logger.error('Error sending email', error)
-  })
+  }
 }
 
 module.exports = sendInviteEmail;
