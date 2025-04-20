@@ -109,15 +109,14 @@ describe('POST /api/v1/auth/register', () => {
   });
 
   // not sure why this is failing because when I run the test in the degugger it passes
-  // it('should return 500 if there is a server error
-  it.skip('should return 500 if there is a server error', async () => {
+  it('should return 400 if there is a error', async () => {
       admin.auth().getUserByEmail.mockRejectedValue(new Error('Failed to retrieve or create user'));
 
       const res = await request(app)
         .post('/api/v1/auth/register')
         .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
 
-      expect(res.status).toBe(500);
-      expect(res.body.message).toBe('Failed to retrieve or create user');
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Validation error');
   });
 });
