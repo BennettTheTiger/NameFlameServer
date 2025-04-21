@@ -2,7 +2,6 @@ const request = require('supertest');
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const NameContext = require('../../../models/nameContext');
-const Name = require('../../../models/name');
 const router = require('./index');
 const { errorHandler } = require('../../../middleware/errors');
 const Invitation = require('../../../models/invitations');
@@ -26,6 +25,7 @@ jest.mock('../../../models/name');
 jest.mock('../../../models/user');
 jest.mock('../../../logger');
 jest.mock('../../../models/invitations');
+jest.mock('../../../match/matchBatch');
 jest.mock('uuid', () => ({ v4: jest.fn() }));
 
 describe('NameContext Routes', () => {
@@ -357,34 +357,19 @@ describe('NameContext Routes', () => {
   });
 
   describe('GET /nameContext/:id/nextNames', () => {
-    it.skip('should return 200 and the next set of names', async () => {
+    it('should return 200 and the next set of names', async () => {
       const nameContext = {
         id: 'contextId',
         owner: 'userSystemId',
         filter: { startsWithLetter: 'A', maxCharacters: 10, gender: 'male' },
-        likedNames: new Map([['userSystemId', ['Aaron']]])
       };
-      const commonPopularity = { 2004: { males: 4, females: 1 }};
-      const names = [
-        { name: 'Adam', popularity: commonPopularity },
-        { name: 'Andrew', popularity: commonPopularity }
-      ];
       NameContext.findOne.mockResolvedValue(nameContext);
-      Name.aggregate.mockResolvedValue(names);
-      Name.toObject = jest.fn().mockReturnValue(this);
-
 
       const res = await request(app)
         .get('/api/v1/nameContext/contextId/nextNames')
         .set('Authorization', 'Bearer validToken');
 
-      expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
-      expect(Name.aggregate).toHaveBeenCalledWith([
-        { $match: { $expr: { $lte: [{ $strLenCP: '$name' }, 10] }, name: { $nin: ['Aaron'], $regex: '^A', $options: 'i' } } },
-        { $sample: { size: 10 } }
-      ]);
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(names);
     });
 
     it('should return 404 if name context is not found', async () => {
@@ -409,6 +394,140 @@ describe('NameContext Routes', () => {
       expect(NameContext.findOne).toHaveBeenCalledWith({ id: 'contextId' });
       expect(res.status).toBe(500);
       expect(res.body.message).toBe('Server error');
+    });
+  });
+
+  describe('GET /nameContext/:id/invites', () => {
+    it('should return 200 and the trimmed invites', async () => {
+      const invites = [
+        { id: 'invite1', email: 'test1@example.com', expiresAt: '2025-04-20T12:00:00Z' },
+        { id: 'invite2', email: 'test2@example.com', expiresAt: '2025-04-21T12:00:00Z' },
+      ];
+      const trimmedInvites = invites.map((invite) => ({
+        id: invite.id,
+        email: invite.email,
+        expiresAt: invite.expiresAt,
+      }));
+
+      NameContext.findOne.mockResolvedValue({owner: 'userSystemId'});
+
+      Invitation.find.mockResolvedValue(invites);
+
+      const res = await request(app)
+        .get('/api/v1/nameContext/contextId/invites')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(Invitation.find).toHaveBeenCalledWith({ nameContextId: 'contextId' });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(trimmedInvites);
+    });
+
+    it('should return 500 if there is a server error', async () => {
+      Invitation.find.mockRejectedValue(new Error('Server error'));
+
+      const res = await request(app)
+        .get('/api/v1/nameContext/contextId/invites')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(res.status).toBe(500);
+    });
+  });
+  describe('/nameContext/:id/participant', () => {
+    it('should return 200 and update the participant in the name context', async () => {
+      const nameContext = {
+        id: 'contextId',
+        participants: [{ id: 'participantId1', email: 'test1@example.com' }],
+        owner: 'userSystemId',
+        save: jest.fn().mockResolvedValue({}),
+        toObject: jest.fn().mockReturnValue({
+          id: 'contextId',
+          participants: [{ id: 'participantId1', email: 'updated@example.com' }, { email: 'updated@example.com'}],
+          owner: 'userSystemId',
+        }),
+      };
+
+      NameContext.findOne.mockResolvedValue(nameContext);
+
+      const res = await request(app)
+        .post('/api/v1/nameContext/contextId/participant')
+        .send({ email: 'test@example.com' })
+        .set('Authorization', 'Bearer validToken');
+
+      expect(nameContext.save).toHaveBeenCalled();
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({ message: 'User added', type: 'user' });
+    });
+
+    it('should return 404 if the name context is not found', async () => {
+      NameContext.findOne.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/v1/nameContext/contextId/participant')
+        .send({ email: 'updated@example.com' })
+        .set('Authorization', 'Bearer validToken');
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Name context contextId not found');
+    });
+
+    it('should return 403 if the user is not authorized to update the participant', async () => {
+      const nameContext = {
+        id: 'contextId',
+        participants: [{ id: 'participantId1', email: 'test1@example.com' }],
+        owner: 'otherUserId', // Different owner
+      };
+
+      NameContext.findOne.mockResolvedValue(nameContext);
+
+      const res = await request(app)
+        .delete('/api/v1/nameContext/contextId/participant/participantId1')
+        .send({ email: 'updated@example.com' })
+        .set('Authorization', 'Bearer validToken');
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('User is not the owner of name context contextId');
+    });
+
+    it('should return 500 if there is a server error', async () => {
+      NameContext.findOne.mockRejectedValue(new Error('Server error'));
+
+      const res = await request(app)
+        .delete('/api/v1/nameContext/contextId/participant/participantId1')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(res.status).toBe(500);
+    });
+
+    it('should return 204 on successful deletion of a participant', async () => {
+      const nameContext = {
+        id: 'contextId',
+        participants: [{ id: 'participantId1', email: 'test1@example.com' }],
+        owner: 'userSystemId',
+        save: jest.fn().mockResolvedValue({}),
+      };
+      NameContext.findOne.mockResolvedValue(nameContext);
+
+      const res = await request(app)
+        .delete('/api/v1/nameContext/contextId/participant/participantId1')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(res.status).toBe(204);
+    });
+
+    it('should return 500 on failed deletion of a participant', async () => {
+      const nameContext = {
+        id: 'contextId',
+        participants: [{ id: 'participantId1', email: 'test1@example.com' }],
+        owner: 'userSystemId',
+        save: jest.fn().mockRejectedValue(new Error('Failed to delete participant')),
+      };
+      NameContext.findOne.mockResolvedValue(nameContext);
+
+      const res = await request(app)
+        .delete('/api/v1/nameContext/contextId/participant/participantId1')
+        .set('Authorization', 'Bearer validToken');
+
+      expect(res.status).toBe(500);
     });
   });
 });

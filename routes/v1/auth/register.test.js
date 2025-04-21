@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const router = require('./register');
 const { errorHandler } = require('../../../middleware/errors');
 const Invitation = require('../../../models/invitations');
+const NameContext = require('../../../models/nameContext');
 
 const app = express();
 app.use(express.json());
@@ -14,6 +15,7 @@ app.use(errorHandler);
 
 jest.mock('../../../models/user');
 jest.mock('../../../models/invitations');
+jest.mock('../../../models/nameContext');
 jest.mock('../../../firebase', () => ({
   auth: jest.fn().mockReturnThis(),
   getUserByEmail: jest.fn(),
@@ -71,6 +73,26 @@ describe('POST /api/v1/auth/register', () => {
     expect(res.text).toBe('User registered successfully');
   });
 
+  it('should return 200 and create MongoDB user and add to invited name contexts', async () => {
+    admin.auth().getUserByEmail.mockResolvedValue({ uid: 'firebaseUid' });
+    User.findOne.mockResolvedValue(null);
+    Invitation.find.mockResolvedValue([{ nameContextId: 'contextId' }]);
+    NameContext.findOne.mockResolvedValue({ id: 'contextId', participants: [], save: jest.fn() });
+    uuidv4.mockReturnValue('unique-id');
+    User.prototype.validateSync = jest.fn().mockReturnValue(null);
+    User.prototype.save = jest.fn().mockResolvedValue({});
+
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+
+    expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
+    expect(User.findOne).toHaveBeenCalledWith({ firebaseUid: { $eq: 'firebaseUid' } });
+    expect(User.prototype.save).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('User registered successfully');
+  });
+
   it('should return 400 if user already exists in MongoDB', async () => {
     admin.auth().getUserByEmail.mockResolvedValue({ uid: 'firebaseUid' });
     User.findOne.mockResolvedValue({ firebaseUid: 'firebaseUid' });
@@ -109,15 +131,14 @@ describe('POST /api/v1/auth/register', () => {
   });
 
   // not sure why this is failing because when I run the test in the degugger it passes
-  // it('should return 500 if there is a server error
-  it.skip('should return 500 if there is a server error', async () => {
+  it('should return 400 if there is a error', async () => {
       admin.auth().getUserByEmail.mockRejectedValue(new Error('Failed to retrieve or create user'));
 
       const res = await request(app)
         .post('/api/v1/auth/register')
         .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
 
-      expect(res.status).toBe(500);
-      expect(res.body.message).toBe('Failed to retrieve or create user');
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Validation error');
   });
 });

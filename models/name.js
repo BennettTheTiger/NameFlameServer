@@ -35,7 +35,7 @@ nameSchema.virtual('gender').get(function() {
   } else if (femaleCount > maleCount) {
     return 'female';
   } else {
-    return 'unisex';
+    return 'neutral';
   }
 });
 
