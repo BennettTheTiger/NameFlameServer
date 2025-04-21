@@ -159,7 +159,7 @@ describe('Name Model', () => {
     const name = new Name(nameData);
     await name.save();
 
-    await Name.deleteOne({ name: 'Name' });
+    await Name.deleteOne({ name: 'Name6' });
 
     const deletedName = await Name.findOne({ name: 'Name' });
     expect(deletedName).toBeNull();
