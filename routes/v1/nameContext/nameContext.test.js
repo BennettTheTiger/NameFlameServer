@@ -458,31 +458,6 @@ describe('NameContext Routes', () => {
       expect(res.body).toEqual({ message: 'User added', type: 'user' });
     });
 
-    it('should return 200 and update the participant in the name context', async () => {
-      const nameContext = {
-        id: 'contextId',
-        participants: [{ id: 'participantId1', email: 'test1@example.com' }],
-        owner: 'userSystemId',
-        save: jest.fn().mockResolvedValue({}),
-        toObject: jest.fn().mockReturnValue({
-          id: 'contextId',
-          participants: [{ id: 'participantId1', email: 'updated@example.com' }, { email: 'updated@example.com'}],
-          owner: 'userSystemId',
-        }),
-      };
-
-      NameContext.findOne.mockResolvedValue(nameContext);
-
-      const res = await request(app)
-        .post('/api/v1/nameContext/contextId/participant')
-        .send({ email: 'test@example.com' })
-        .set('Authorization', 'Bearer validToken');
-
-      expect(nameContext.save).toHaveBeenCalled();
-      expect(res.status).toBe(201);
-      expect(res.body).toEqual({ message: 'User added', type: 'user' });
-    });
-
     it('should return 404 if the name context is not found', async () => {
       NameContext.findOne.mockResolvedValue(null);
 

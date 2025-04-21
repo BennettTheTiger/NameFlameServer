@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const router = require('./register');
 const { errorHandler } = require('../../../middleware/errors');
 const Invitation = require('../../../models/invitations');
+const NameContext = require('../../../models/nameContext');
 
 const app = express();
 app.use(express.json());
@@ -14,6 +15,7 @@ app.use(errorHandler);
 
 jest.mock('../../../models/user');
 jest.mock('../../../models/invitations');
+jest.mock('../../../models/nameContext');
 jest.mock('../../../firebase', () => ({
   auth: jest.fn().mockReturnThis(),
   getUserByEmail: jest.fn(),
@@ -56,6 +58,26 @@ describe('POST /api/v1/auth/register', () => {
     admin.auth().getUserByEmail.mockResolvedValue({ uid: 'firebaseUid' });
     User.findOne.mockResolvedValue(null);
     Invitation.find.mockResolvedValue([]);
+    uuidv4.mockReturnValue('unique-id');
+    User.prototype.validateSync = jest.fn().mockReturnValue(null);
+    User.prototype.save = jest.fn().mockResolvedValue({});
+
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'test@example.com', password: 'password123', userName: 'testuser' });
+
+    expect(admin.auth().getUserByEmail).toHaveBeenCalledWith('test@example.com');
+    expect(User.findOne).toHaveBeenCalledWith({ firebaseUid: { $eq: 'firebaseUid' } });
+    expect(User.prototype.save).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('User registered successfully');
+  });
+
+  it('should return 200 and create MongoDB user and add to invited name contexts', async () => {
+    admin.auth().getUserByEmail.mockResolvedValue({ uid: 'firebaseUid' });
+    User.findOne.mockResolvedValue(null);
+    Invitation.find.mockResolvedValue([{ nameContextId: 'contextId' }]);
+    NameContext.findOne.mockResolvedValue({ id: 'contextId', participants: [], save: jest.fn() });
     uuidv4.mockReturnValue('unique-id');
     User.prototype.validateSync = jest.fn().mockReturnValue(null);
     User.prototype.save = jest.fn().mockResolvedValue({});
