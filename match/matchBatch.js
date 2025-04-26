@@ -51,7 +51,7 @@ async function matchBatch(req) {
     mongoQuery.name = { ...mongoQuery.name, $nin: userLikedNames };
     }
 
-    const sizeLimit = Math.min(parseInt(limit || 0, 10), 50);
+    const sizeLimit = Math.min(parseInt(limit || 0, 10), 25);
 
     // Use MongoDB aggregation to apply the filter and sample the results
     const namesResults = await Name.aggregate([
